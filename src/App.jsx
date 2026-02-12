@@ -60,6 +60,7 @@ function fromRow(row) {
     email: row.email || "",
     nextAction: row.next_action || "",
     nextActionDue: row.next_action_due || "",
+    website: row.website || "",
     notes: row.notes || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -76,6 +77,7 @@ function toRow(card) {
     email: card.email || "",
     next_action: card.nextAction || "",
     next_action_due: card.nextActionDue || "",
+    website: card.website || "",
     notes: card.notes || "",
     created_at: card.createdAt,
     updated_at: card.updatedAt,
@@ -133,7 +135,7 @@ export default function App() {
     if (!q) return cards;
     return cards.filter((c) => {
       const blob =
-        `${c.title} ${c.value} ${c.phone} ${c.email} ${c.nextAction} ${c.notes}`.toLowerCase();
+        `${c.title} ${c.value} ${c.phone} ${c.email} ${c.nextAction} ${c.website} ${c.notes}`.toLowerCase();
       return blob.includes(q);
     });
   }, [cards, query]);
@@ -184,6 +186,7 @@ export default function App() {
       email: "",
       nextAction: "",
       nextActionDue: "",
+      website: "",
       notes: "",
       createdAt: now,
       updatedAt: now,
@@ -308,7 +311,7 @@ export default function App() {
         <div className="controls">
           <input
             className="search"
-            placeholder="Search deals\u2026"
+            placeholder="Search deals..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -553,6 +556,14 @@ function Editor({ card, columns, onChange, onDelete, onClose }) {
         placeholder="name@company.com"
         value={card.email || ""}
         onChange={(e) => onChange({ email: e.target.value })}
+      />
+
+      <label className="label">Website (optional)</label>
+      <input
+        type="url"
+        placeholder="https://company.com"
+        value={card.website || ""}
+        onChange={(e) => onChange({ website: e.target.value })}
       />
 
       <label className="label">Stage</label>

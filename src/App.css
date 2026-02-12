@@ -174,7 +174,9 @@ body { overflow-x: auto; }
   border: 1px solid #e4e7ec;
   border-radius: 14px;
   padding: 10px;
-  min-height: 70vh;
+  min-height: 200px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
   transition: background 0.15s;
 }
 
@@ -308,7 +310,9 @@ body { overflow-x: auto; }
   border: 1px solid #e4e7ec;
   border-radius: 14px;
   padding: 14px;
-  min-height: 70vh;
+  min-height: 200px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
 }
 
 .panelTitle {
