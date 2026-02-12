@@ -213,6 +213,46 @@ body { overflow-x: auto; }
 .muted { color: #667085; }
 .small { font-size: 12px; }
 
+/* ── Contact info on card ────────────────────────────────── */
+
+.cardContact {
+  font-size: 11px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contactIcon {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.5;
+}
+
+/* ── Due date badges ─────────────────────────────────────── */
+
+.dueBadge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.dueBadge.overdue {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.dueBadge.today {
+  background: #fef0c7;
+  color: #93370d;
+}
+
+.dueBadge.future {
+  background: #f2f4f7;
+  color: #667085;
+}
+
 /* ── Side panel ──────────────────────────────────────────── */
 
 .panel {

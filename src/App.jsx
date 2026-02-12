@@ -17,6 +17,22 @@ function uid() {
   return crypto?.randomUUID?.() ?? String(Date.now() + Math.random());
 }
 
+function getDueStatus(date) {
+  if (!date) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(date + "T00:00:00");
+  if (due < today) return "overdue";
+  if (due.getTime() === today.getTime()) return "today";
+  return "future";
+}
+
+function formatDueDate(date) {
+  if (!date) return "";
+  const d = new Date(date + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 /* ── localStorage helpers (offline fallback) ──────────────────── */
 
 function loadLocal() {
@@ -40,7 +56,10 @@ function fromRow(row) {
     title: row.title,
     columnId: row.column_id,
     value: row.value || "",
-    nextStep: row.next_step || "",
+    phone: row.phone || "",
+    email: row.email || "",
+    nextAction: row.next_action || "",
+    nextActionDue: row.next_action_due || "",
     notes: row.notes || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -53,7 +72,10 @@ function toRow(card) {
     title: card.title,
     column_id: card.columnId,
     value: card.value || "",
-    next_step: card.nextStep || "",
+    phone: card.phone || "",
+    email: card.email || "",
+    next_action: card.nextAction || "",
+    next_action_due: card.nextActionDue || "",
     notes: card.notes || "",
     created_at: card.createdAt,
     updated_at: card.updatedAt,
@@ -111,7 +133,7 @@ export default function App() {
     if (!q) return cards;
     return cards.filter((c) => {
       const blob =
-        `${c.title} ${c.value} ${c.nextStep} ${c.notes}`.toLowerCase();
+        `${c.title} ${c.value} ${c.phone} ${c.email} ${c.nextAction} ${c.notes}`.toLowerCase();
       return blob.includes(q);
     });
   }, [cards, query]);
@@ -158,7 +180,10 @@ export default function App() {
       title: title.trim(),
       columnId: "backlog",
       value: "",
-      nextStep: "",
+      phone: "",
+      email: "",
+      nextAction: "",
+      nextActionDue: "",
       notes: "",
       createdAt: now,
       updatedAt: now,
@@ -167,7 +192,6 @@ export default function App() {
     syncOp(() => supabase.from("deals").insert(toRow(newCard)));
   }
 
-  // Debounce ref for update saves
   const updateTimers = useRef({});
 
   const updateCard = useCallback(
@@ -180,10 +204,8 @@ export default function App() {
         )
       );
 
-      // Debounce Supabase write per card (avoids spamming on every keystroke)
       clearTimeout(updateTimers.current[id]);
       updateTimers.current[id] = setTimeout(() => {
-        // Read the latest card from state
         setCards((prev) => {
           const latest = prev.find((c) => c.id === id);
           if (latest) {
@@ -191,7 +213,7 @@ export default function App() {
               supabase.from("deals").update(toRow(latest)).eq("id", id)
             );
           }
-          return prev; // no state change
+          return prev;
         });
         delete updateTimers.current[id];
       }, 600);
@@ -256,7 +278,6 @@ export default function App() {
         const imported = JSON.parse(reader.result);
         if (!Array.isArray(imported) || imported.length === 0) return;
         setCards(imported);
-        // Upsert all to Supabase
         syncOp(() =>
           supabase.from("deals").upsert(imported.map(toRow), { onConflict: "id" })
         );
@@ -343,32 +364,56 @@ export default function App() {
               </div>
 
               <div className="colBody">
-                {colCards.map((card) => (
-                  <div
-                    key={card.id}
-                    className={
-                      "card" + (selectedId === card.id ? " selected" : "")
-                    }
-                    draggable
-                    onDragStart={(e) => onDragStart(e, card.id)}
-                    onClick={() => setSelectedId(card.id)}
-                    title="Drag to move. Click to edit."
-                  >
-                    <div className="cardTitle">{card.title}</div>
-                    {card.nextStep && (
-                      <div className="cardMeta">
-                        <span className="pill">Next</span>
-                        <span className="muted">{card.nextStep}</span>
-                      </div>
-                    )}
-                    {card.value && (
-                      <div className="cardMeta">
-                        <span className="pill">Value</span>
-                        <span className="muted">{card.value}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {colCards.map((card) => {
+                  const dueStatus = getDueStatus(card.nextActionDue);
+                  return (
+                    <div
+                      key={card.id}
+                      className={
+                        "card" + (selectedId === card.id ? " selected" : "")
+                      }
+                      draggable
+                      onDragStart={(e) => onDragStart(e, card.id)}
+                      onClick={() => setSelectedId(card.id)}
+                      title="Drag to move. Click to edit."
+                    >
+                      <div className="cardTitle">{card.title}</div>
+
+                      {card.phone && (
+                        <div className="cardContact muted">
+                          <span className="contactIcon">tel</span> {card.phone}
+                        </div>
+                      )}
+                      {card.email && (
+                        <div className="cardContact muted">
+                          <span className="contactIcon">@</span> {card.email}
+                        </div>
+                      )}
+
+                      {card.nextAction && (
+                        <div className="cardMeta">
+                          <span className="pill">Next</span>
+                          <span className="muted">{card.nextAction}</span>
+                        </div>
+                      )}
+
+                      {dueStatus && (
+                        <div className="cardMeta">
+                          <span className={"dueBadge " + dueStatus}>
+                            {formatDueDate(card.nextActionDue)}
+                          </span>
+                        </div>
+                      )}
+
+                      {card.value && (
+                        <div className="cardMeta">
+                          <span className="pill">Value</span>
+                          <span className="muted">{card.value}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           );
@@ -387,7 +432,7 @@ export default function App() {
             <div className="panelEmpty">
               <div className="panelTitle">Deal Details</div>
               <div className="muted">
-                Click a card to edit title, next step, notes, and value.
+                Click a card to edit.
               </div>
             </div>
           )}
@@ -461,6 +506,22 @@ function Editor({ card, columns, onChange, onDelete, onClose }) {
         onChange={(e) => onChange({ title: e.target.value })}
       />
 
+      <label className="label">Phone</label>
+      <input
+        type="tel"
+        placeholder="337-555-1234"
+        value={card.phone || ""}
+        onChange={(e) => onChange({ phone: e.target.value })}
+      />
+
+      <label className="label">Email</label>
+      <input
+        type="email"
+        placeholder="name@company.com"
+        value={card.email || ""}
+        onChange={(e) => onChange({ email: e.target.value })}
+      />
+
       <label className="label">Stage</label>
       <select
         value={card.columnId}
@@ -480,16 +541,23 @@ function Editor({ card, columns, onChange, onDelete, onClose }) {
         onChange={(e) => onChange({ value: e.target.value })}
       />
 
-      <label className="label">Next step</label>
+      <label className="label">Next Action</label>
       <input
-        placeholder="What is the next action?"
-        value={card.nextStep || ""}
-        onChange={(e) => onChange({ nextStep: e.target.value })}
+        placeholder="What is the next thing you need to do?"
+        value={card.nextAction || ""}
+        onChange={(e) => onChange({ nextAction: e.target.value })}
+      />
+
+      <label className="label">Due Date</label>
+      <input
+        type="date"
+        value={card.nextActionDue || ""}
+        onChange={(e) => onChange({ nextActionDue: e.target.value })}
       />
 
       <label className="label">Notes</label>
       <textarea
-        rows={10}
+        rows={8}
         placeholder="Dump your notes here."
         value={card.notes || ""}
         onChange={(e) => onChange({ notes: e.target.value })}
