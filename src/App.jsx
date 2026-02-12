@@ -314,24 +314,6 @@ export default function App() {
           />
           <AddDeal onAdd={addCard} />
 
-          <button
-            className="btn ghost"
-            onClick={handleExport}
-            title="Export JSON backup"
-          >
-            Export
-          </button>
-
-          <label className="btn ghost importLabel" title="Import JSON backup">
-            Import
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImport}
-              style={{ display: "none" }}
-            />
-          </label>
-
           {syncStatus && (
             <span className={"syncBadge " + syncStatus}>
               {syncStatus === "syncing"
@@ -342,9 +324,11 @@ export default function App() {
             </span>
           )}
 
-          <button className="btn ghost" onClick={resetBoard}>
-            Reset
-          </button>
+          <OptionsMenu
+            onExport={handleExport}
+            onImport={handleImport}
+            onReset={resetBoard}
+          />
         </div>
       </header>
 
@@ -483,6 +467,55 @@ function AddDeal({ onAdd }) {
             </button>
           </div>
         </form>
+      )}
+    </div>
+  );
+}
+
+/* ── OptionsMenu ──────────────────────────────────────────────── */
+
+function OptionsMenu({ onExport, onImport, onReset }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  return (
+    <div className="optionsWrap" ref={ref}>
+      <button className="btn ghost" onClick={() => setOpen((v) => !v)}>
+        Options
+      </button>
+      {open && (
+        <div className="optionsMenu">
+          <button
+            className="optionsItem"
+            onClick={() => { onExport(); setOpen(false); }}
+          >
+            Export JSON
+          </button>
+          <label className="optionsItem importLabel">
+            Import JSON
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => { onImport(e); setOpen(false); }}
+              style={{ display: "none" }}
+            />
+          </label>
+          <button
+            className="optionsItem danger"
+            onClick={() => { onReset(); setOpen(false); }}
+          >
+            Reset Board
+          </button>
+        </div>
       )}
     </div>
   );

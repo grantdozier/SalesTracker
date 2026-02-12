@@ -85,10 +85,56 @@ body { overflow-x: auto; }
   background: #912018;
 }
 
-.importLabel {
-  cursor: pointer;
-  display: inline-flex;
+/* ── Options dropdown ─────────────────────────────────────── */
+
+.optionsWrap {
+  position: relative;
+}
+
+.optionsMenu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  width: 180px;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 20;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.optionsItem {
+  display: flex;
   align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  color: #344054;
+  text-align: left;
+}
+
+.optionsItem:hover {
+  background: #f2f4f7;
+}
+
+.optionsItem.danger {
+  color: #b42318;
+}
+
+.optionsItem.danger:hover {
+  background: #fee4e2;
+}
+
+.optionsItem.importLabel {
+  cursor: pointer;
 }
 
 /* ── Sync badge ──────────────────────────────────────────── */
