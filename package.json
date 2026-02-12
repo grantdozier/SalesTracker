@@ -1,0 +1,23 @@
+{
+  "name": "sales-board",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "homepage": "https://grantdozier.github.io/SalesTracker",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "vite build && gh-pages -d dist"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "gh-pages": "^6.3.0",
+    "vite": "^6.1.0"
+  }
+}
