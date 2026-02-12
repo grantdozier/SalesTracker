@@ -13,13 +13,30 @@ const DEFAULT_COLUMNS = [
   { id: "lost", title: "Lost" },
 ];
 
-const CATEGORIES = [
-  "Fab Shop",
-  "Engineering Firm",
-  "Oil & Gas",
-  "Lumber Yard",
-  "General",
+/* ── Color palette for category badges ────────────────────────── */
+
+const CAT_COLORS = [
+  { bg: "#eff8ff", fg: "#175cd3" },
+  { bg: "#fdf2fa", fg: "#c11574" },
+  { bg: "#ecfdf3", fg: "#027a48" },
+  { bg: "#fff6ed", fg: "#c4320a" },
+  { bg: "#f4f3ff", fg: "#5925dc" },
+  { bg: "#fef3f2", fg: "#b42318" },
+  { bg: "#f0f9ff", fg: "#026aa2" },
+  { bg: "#fdf4ff", fg: "#7f56d9" },
+  { bg: "#fffaeb", fg: "#b54708" },
+  { bg: "#f8f9fc", fg: "#363f72" },
+  { bg: "#edfcf2", fg: "#0e7849" },
+  { bg: "#fef4e6", fg: "#a8520b" },
 ];
+
+function catColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return CAT_COLORS[Math.abs(hash) % CAT_COLORS.length];
+}
 
 function uid() {
   return crypto?.randomUUID?.() ?? String(Date.now() + Math.random());
@@ -94,6 +111,20 @@ function toRow(card) {
   };
 }
 
+/* ── Category badge component ─────────────────────────────────── */
+
+function CatBadge({ name }) {
+  const c = catColor(name);
+  return (
+    <span
+      className="catBadge"
+      style={{ background: c.bg, color: c.fg }}
+    >
+      {name}
+    </span>
+  );
+}
+
 /* ── App ──────────────────────────────────────────────────────── */
 
 export default function App() {
@@ -102,6 +133,7 @@ export default function App() {
     const saved = loadLocal();
     return saved?.cards?.length ? saved.cards : [];
   });
+  const [categories, setCategories] = useState([]);
 
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -113,21 +145,26 @@ export default function App() {
   /* ── Load from Supabase on mount ── */
   useEffect(() => {
     setSyncStatus("syncing");
-    supabase
-      .from("deals")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Supabase load error:", error);
-          setSyncStatus("offline");
-          return;
-        }
-        const loaded = (data || []).map(fromRow);
-        setCards(loaded);
-        saveLocal(loaded);
-        setSyncStatus("synced");
-      });
+
+    Promise.all([
+      supabase.from("deals").select("*").order("created_at", { ascending: false }),
+      supabase.from("categories").select("name").order("name"),
+    ]).then(([dealsRes, catsRes]) => {
+      if (dealsRes.error) {
+        console.error("Supabase load error:", dealsRes.error);
+        setSyncStatus("offline");
+        return;
+      }
+      const loaded = (dealsRes.data || []).map(fromRow);
+      setCards(loaded);
+      saveLocal(loaded);
+
+      if (!catsRes.error && catsRes.data) {
+        setCategories(catsRes.data.map((r) => r.name));
+      }
+
+      setSyncStatus("synced");
+    });
   }, []);
 
   /* ── Persist to localStorage on every change ── */
@@ -193,6 +230,16 @@ export default function App() {
       setSyncStatus("offline");
     }
   }, []);
+
+  /* ── Add category ── */
+  function addCategory(name) {
+    const trimmed = name.trim();
+    if (!trimmed || categories.includes(trimmed)) return;
+    setCategories((prev) => [...prev, trimmed].sort());
+    supabase.from("categories").insert({ name: trimmed }).then(({ error }) => {
+      if (error) console.error("Category save error:", error);
+    });
+  }
 
   /* ── Actions ── */
   function addCard({ title }) {
@@ -343,7 +390,7 @@ export default function App() {
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             <option value="All">All Categories</option>
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
@@ -399,9 +446,7 @@ export default function App() {
                     >
                       <div className="cardTopRow">
                         <div className="cardTitle">{card.title}</div>
-                        {card.category && (
-                          <span className="catBadge">{card.category}</span>
-                        )}
+                        {card.category && <CatBadge name={card.category} />}
                       </div>
 
                       {card.phone && (
@@ -449,6 +494,8 @@ export default function App() {
             <Editor
               card={selected}
               columns={columns}
+              categories={categories}
+              onAddCategory={addCategory}
               onChange={(patch) => updateCard(selected.id, patch)}
               onDelete={() => deleteCard(selected.id)}
               onClose={() => setSelectedId(null)}
@@ -564,7 +611,19 @@ function OptionsMenu({ onExport, onImport, onReset }) {
 
 /* ── Editor ───────────────────────────────────────────────────── */
 
-function Editor({ card, columns, onChange, onDelete, onClose }) {
+function Editor({ card, columns, categories, onAddCategory, onChange, onDelete, onClose }) {
+  const [adding, setAdding] = useState(false);
+  const [newCat, setNewCat] = useState("");
+
+  function submitNewCat(e) {
+    e.preventDefault();
+    if (!newCat.trim()) return;
+    onAddCategory(newCat.trim());
+    onChange({ category: newCat.trim() });
+    setNewCat("");
+    setAdding(false);
+  }
+
   return (
     <div className="editor">
       <div className="editorHeader">
@@ -581,15 +640,41 @@ function Editor({ card, columns, onChange, onDelete, onClose }) {
       />
 
       <label className="label">Category</label>
-      <select
-        value={card.category || ""}
-        onChange={(e) => onChange({ category: e.target.value })}
-      >
-        <option value="">None</option>
-        {CATEGORIES.map((cat) => (
-          <option key={cat} value={cat}>{cat}</option>
-        ))}
-      </select>
+      <div className="catRow">
+        <select
+          value={card.category || ""}
+          onChange={(e) => onChange({ category: e.target.value })}
+          style={{ flex: 1 }}
+        >
+          <option value="">None</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
+        <button
+          className="btn ghost"
+          type="button"
+          onClick={() => setAdding((v) => !v)}
+          title="Add new category"
+          style={{ padding: "10px 12px", flexShrink: 0 }}
+        >
+          +
+        </button>
+      </div>
+      {adding && (
+        <form onSubmit={submitNewCat} className="catRow" style={{ marginTop: 6 }}>
+          <input
+            autoFocus
+            placeholder="New category name"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <button className="btn" type="submit" style={{ padding: "10px 12px" }}>
+            Add
+          </button>
+        </form>
+      )}
 
       <label className="label">Phone</label>
       <input
