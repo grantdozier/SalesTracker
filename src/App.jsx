@@ -88,6 +88,7 @@ function fromRow(row) {
     website: row.website || "",
     category: row.category || "",
     notes: row.notes || "",
+    sortOrder: row.sort_order ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -106,6 +107,7 @@ function toRow(card) {
     website: card.website || "",
     category: card.category || "",
     notes: card.notes || "",
+    sort_order: card.sortOrder ?? 0,
     created_at: card.createdAt,
     updated_at: card.updatedAt,
   };
@@ -204,7 +206,7 @@ export default function App() {
       map.get(c.columnId).push(c);
     }
     for (const [, arr] of map) {
-      arr.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+      arr.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     }
     return map;
   }, [filteredCards, columns]);
@@ -256,10 +258,17 @@ export default function App() {
       website: "",
       category: "",
       notes: "",
+      sortOrder: 0,
       createdAt: now,
       updatedAt: now,
     };
-    setCards((prev) => [newCard, ...prev]);
+    // New cards go to top — bump everything else in backlog down
+    setCards((prev) => {
+      const bumped = prev.map((c) =>
+        c.columnId === "backlog" ? { ...c, sortOrder: (c.sortOrder ?? 0) + 1 } : c
+      );
+      return [newCard, ...bumped];
+    });
     syncOp(() => supabase.from("deals").insert(toRow(newCard)));
   }
 
@@ -304,13 +313,112 @@ export default function App() {
     e.dataTransfer.setData("text/plain", cardId);
   }
 
-  function onDrop(e, columnId) {
+  function onDropCard(e, targetCardId, position) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cardId =
+      e.dataTransfer.getData("text/plain") || dragCardIdRef.current;
+    if (!cardId || cardId === targetCardId) return;
+
+    const targetCard = cards.find((c) => c.id === targetCardId);
+    if (!targetCard) return;
+
+    reorderCard(cardId, targetCard.columnId, targetCardId, position);
+    dragCardIdRef.current = null;
+  }
+
+  function onDropColumn(e, columnId) {
     e.preventDefault();
     const cardId =
       e.dataTransfer.getData("text/plain") || dragCardIdRef.current;
     if (!cardId) return;
-    updateCard(cardId, { columnId });
+
+    // Dropped on empty area of column — put at end
+    const colCards = (cardsByColumn.get(columnId) || []);
+    const maxOrder = colCards.length > 0
+      ? Math.max(...colCards.map((c) => c.sortOrder ?? 0)) + 1
+      : 0;
+
+    const now = new Date().toISOString();
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === cardId
+          ? { ...c, columnId, sortOrder: maxOrder, updatedAt: now }
+          : c
+      )
+    );
+
+    // Sync the moved card
+    setTimeout(() => {
+      setCards((prev) => {
+        const latest = prev.find((c) => c.id === cardId);
+        if (latest) {
+          syncOp(() =>
+            supabase.from("deals").update(toRow(latest)).eq("id", cardId)
+          );
+        }
+        return prev;
+      });
+    }, 100);
+
     dragCardIdRef.current = null;
+  }
+
+  function reorderCard(cardId, targetColumnId, targetCardId, position) {
+    const now = new Date().toISOString();
+
+    setCards((prev) => {
+      // Get cards in the target column, excluding the dragged card
+      const colCards = prev
+        .filter((c) => c.columnId === targetColumnId && c.id !== cardId)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+      // Find where the target card is
+      const targetIdx = colCards.findIndex((c) => c.id === targetCardId);
+      const insertIdx = position === "above" ? targetIdx : targetIdx + 1;
+
+      // Insert the dragged card at the right position
+      const draggedCard = prev.find((c) => c.id === cardId);
+      if (!draggedCard) return prev;
+
+      colCards.splice(insertIdx, 0, {
+        ...draggedCard,
+        columnId: targetColumnId,
+        updatedAt: now,
+      });
+
+      // Reassign sort_order for all cards in this column
+      const updates = new Map();
+      colCards.forEach((c, i) => {
+        updates.set(c.id, i);
+      });
+
+      const next = prev.map((c) => {
+        if (updates.has(c.id)) {
+          return {
+            ...c,
+            columnId: targetColumnId,
+            sortOrder: updates.get(c.id),
+            updatedAt: c.id === cardId ? now : c.updatedAt,
+          };
+        }
+        return c;
+      });
+
+      // Batch sync all reordered cards in this column
+      const toSync = next.filter(
+        (c) => c.columnId === targetColumnId
+      );
+      Promise.all(
+        toSync.map((c) =>
+          supabase.from("deals").update({ sort_order: c.sortOrder, column_id: c.columnId, updated_at: c.updatedAt }).eq("id", c.id)
+        )
+      ).then(() => setSyncStatus("synced"))
+        .catch(() => setSyncStatus("offline"));
+      setSyncStatus("syncing");
+
+      return next;
+    });
   }
 
   function onDragOver(e) {
@@ -422,7 +530,7 @@ export default function App() {
             <section
               key={col.id}
               className="column"
-              onDrop={(e) => onDrop(e, col.id)}
+              onDrop={(e) => onDropColumn(e, col.id)}
               onDragOver={onDragOver}
             >
               <div className="colHeader">
@@ -436,51 +544,71 @@ export default function App() {
                   return (
                     <div
                       key={card.id}
-                      className={
-                        "card" + (selectedId === card.id ? " selected" : "")
-                      }
-                      draggable
-                      onDragStart={(e) => onDragStart(e, card.id)}
-                      onClick={() => setSelectedId(card.id)}
-                      title="Drag to move. Click to edit."
+                      className={"cardWrap"}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const mid = rect.top + rect.height / 2;
+                        const pos = e.clientY < mid ? "above" : "below";
+                        e.currentTarget.setAttribute("data-drop", pos);
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.removeAttribute("data-drop");
+                      }}
+                      onDrop={(e) => {
+                        const pos = e.currentTarget.getAttribute("data-drop") || "below";
+                        e.currentTarget.removeAttribute("data-drop");
+                        onDropCard(e, card.id, pos);
+                      }}
                     >
-                      <div className="cardTopRow">
-                        <div className="cardTitle">{card.title}</div>
-                        {card.category && <CatBadge name={card.category} />}
+                      <div
+                        className={
+                          "card" + (selectedId === card.id ? " selected" : "")
+                        }
+                        draggable
+                        onDragStart={(e) => onDragStart(e, card.id)}
+                        onClick={() => setSelectedId(card.id)}
+                        title="Drag to move. Click to edit."
+                      >
+                        <div className="cardTopRow">
+                          <div className="cardTitle">{card.title}</div>
+                          {card.category && <CatBadge name={card.category} />}
+                        </div>
+
+                        {card.phone && (
+                          <div className="cardContact muted">
+                            <span className="contactIcon">tel</span> {card.phone}
+                          </div>
+                        )}
+                        {card.email && (
+                          <div className="cardContact muted">
+                            <span className="contactIcon">@</span> {card.email}
+                          </div>
+                        )}
+
+                        {card.nextAction && (
+                          <div className="cardMeta">
+                            <span className="pill">Next</span>
+                            <span className="muted">{card.nextAction}</span>
+                          </div>
+                        )}
+
+                        {dueStatus && (
+                          <div className="cardMeta">
+                            <span className={"dueBadge " + dueStatus}>
+                              {formatDueDate(card.nextActionDue)}
+                            </span>
+                          </div>
+                        )}
+
+                        {card.value && (
+                          <div className="cardMeta">
+                            <span className="pill">Value</span>
+                            <span className="muted">{card.value}</span>
+                          </div>
+                        )}
                       </div>
-
-                      {card.phone && (
-                        <div className="cardContact muted">
-                          <span className="contactIcon">tel</span> {card.phone}
-                        </div>
-                      )}
-                      {card.email && (
-                        <div className="cardContact muted">
-                          <span className="contactIcon">@</span> {card.email}
-                        </div>
-                      )}
-
-                      {card.nextAction && (
-                        <div className="cardMeta">
-                          <span className="pill">Next</span>
-                          <span className="muted">{card.nextAction}</span>
-                        </div>
-                      )}
-
-                      {dueStatus && (
-                        <div className="cardMeta">
-                          <span className={"dueBadge " + dueStatus}>
-                            {formatDueDate(card.nextActionDue)}
-                          </span>
-                        </div>
-                      )}
-
-                      {card.value && (
-                        <div className="cardMeta">
-                          <span className="pill">Value</span>
-                          <span className="muted">{card.value}</span>
-                        </div>
-                      )}
                     </div>
                   );
                 })}

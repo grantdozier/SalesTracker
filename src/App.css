@@ -213,6 +213,34 @@ body { overflow-x: auto; }
 
 /* ── Card ────────────────────────────────────────────────── */
 
+.cardWrap {
+  position: relative;
+}
+
+.cardWrap[data-drop="above"]::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #111;
+  border-radius: 2px;
+  z-index: 5;
+}
+
+.cardWrap[data-drop="below"]::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #111;
+  border-radius: 2px;
+  z-index: 5;
+}
+
 .card {
   background: #f9fafb;
   border: 1px solid #eaecf0;
