@@ -13,6 +13,14 @@ const DEFAULT_COLUMNS = [
   { id: "lost", title: "Lost" },
 ];
 
+const CATEGORIES = [
+  "Fab Shop",
+  "Engineering Firm",
+  "Oil & Gas",
+  "Lumber Yard",
+  "General",
+];
+
 function uid() {
   return crypto?.randomUUID?.() ?? String(Date.now() + Math.random());
 }
@@ -61,6 +69,7 @@ function fromRow(row) {
     nextAction: row.next_action || "",
     nextActionDue: row.next_action_due || "",
     website: row.website || "",
+    category: row.category || "",
     notes: row.notes || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -78,6 +87,7 @@ function toRow(card) {
     next_action: card.nextAction || "",
     next_action_due: card.nextActionDue || "",
     website: card.website || "",
+    category: card.category || "",
     notes: card.notes || "",
     created_at: card.createdAt,
     updated_at: card.updatedAt,
@@ -94,6 +104,7 @@ export default function App() {
   });
 
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [selectedId, setSelectedId] = useState(null);
   const [syncStatus, setSyncStatus] = useState("syncing");
 
@@ -131,14 +142,23 @@ export default function App() {
   );
 
   const filteredCards = useMemo(() => {
+    let result = cards;
+
+    if (categoryFilter !== "All") {
+      result = result.filter((c) => c.category === categoryFilter);
+    }
+
     const q = query.trim().toLowerCase();
-    if (!q) return cards;
-    return cards.filter((c) => {
-      const blob =
-        `${c.title} ${c.value} ${c.phone} ${c.email} ${c.nextAction} ${c.website} ${c.notes}`.toLowerCase();
-      return blob.includes(q);
-    });
-  }, [cards, query]);
+    if (q) {
+      result = result.filter((c) => {
+        const blob =
+          `${c.title} ${c.value} ${c.phone} ${c.email} ${c.nextAction} ${c.website} ${c.category} ${c.notes}`.toLowerCase();
+        return blob.includes(q);
+      });
+    }
+
+    return result;
+  }, [cards, query, categoryFilter]);
 
   const cardsByColumn = useMemo(() => {
     const map = new Map(columns.map((col) => [col.id, []]));
@@ -187,6 +207,7 @@ export default function App() {
       nextAction: "",
       nextActionDue: "",
       website: "",
+      category: "",
       notes: "",
       createdAt: now,
       updatedAt: now,
@@ -315,12 +336,24 @@ export default function App() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+
+          <select
+            className="filterSelect"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="All">All Categories</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+
           <AddDeal onAdd={addCard} />
 
           {syncStatus && (
             <span className={"syncBadge " + syncStatus}>
               {syncStatus === "syncing"
-                ? "Syncing\u2026"
+                ? "Syncing..."
                 : syncStatus === "synced"
                 ? "Synced"
                 : "Offline (local)"}
@@ -364,7 +397,12 @@ export default function App() {
                       onClick={() => setSelectedId(card.id)}
                       title="Drag to move. Click to edit."
                     >
-                      <div className="cardTitle">{card.title}</div>
+                      <div className="cardTopRow">
+                        <div className="cardTitle">{card.title}</div>
+                        {card.category && (
+                          <span className="catBadge">{card.category}</span>
+                        )}
+                      </div>
 
                       {card.phone && (
                         <div className="cardContact muted">
@@ -541,6 +579,17 @@ function Editor({ card, columns, onChange, onDelete, onClose }) {
         value={card.title}
         onChange={(e) => onChange({ title: e.target.value })}
       />
+
+      <label className="label">Category</label>
+      <select
+        value={card.category || ""}
+        onChange={(e) => onChange({ category: e.target.value })}
+      >
+        <option value="">None</option>
+        {CATEGORIES.map((cat) => (
+          <option key={cat} value={cat}>{cat}</option>
+        ))}
+      </select>
 
       <label className="label">Phone</label>
       <input
