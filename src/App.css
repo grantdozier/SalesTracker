@@ -799,6 +799,122 @@ select {
   border-bottom: none;
 }
 
+/* ── Done button ─────────────────────────────────────────── */
+
+.execDoneBtn {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d0d5dd;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0;
+  color: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.execDoneBtn:hover {
+  border-color: #027a48;
+  background: #d1fadf;
+  font-size: 11px;
+  color: #027a48;
+}
+
+/* ── Completed toggle + panel ────────────────────────────── */
+
+.completedToggle {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #98a2b3;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.completedToggle:hover {
+  color: #667085;
+}
+
+.completedPanel {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 14px;
+}
+
+.completedHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.completedTitle {
+  font-weight: 700;
+  font-size: 14px;
+  color: #344054;
+}
+
+.completedClose {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #98a2b3;
+  cursor: pointer;
+  padding: 0 4px;
+  font-family: inherit;
+}
+
+.completedClose:hover {
+  color: #667085;
+}
+
+.completedList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.completedItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+}
+
+.completedItemName {
+  flex: 1;
+  font-size: 13px;
+  color: #667085;
+  text-decoration: line-through;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.completedUndo {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #98a2b3;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.completedUndo:hover {
+  color: #027a48;
+}
+
 .execTaskName {
   flex: 1;
   font-size: 13px;

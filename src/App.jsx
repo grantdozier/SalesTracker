@@ -999,6 +999,7 @@ function Execution() {
     catch { return {}; }
   });
   const [mobileExecCol, setMobileExecCol] = useState("execute");
+  const [showCompleted, setShowCompleted] = useState(false);
   const dragTaskRef = useRef(null);
 
   /* ── Sync helper (same pattern as Board) ── */
@@ -1086,7 +1087,8 @@ function Execution() {
 
   /* ── Derived: tasks grouped by section, sorted ── */
   const tasksBySection = useMemo(() => {
-    const filtered = labelFilter === "All" ? tasks : tasks.filter((t) => t.label === labelFilter);
+    const active = tasks.filter((t) => t.status !== "done");
+    const filtered = labelFilter === "All" ? active : active.filter((t) => t.label === labelFilter);
     const map = new Map(SECTIONS.map((s) => [s.id, []]));
     for (const t of filtered) {
       if (!map.has(t.section)) map.set(t.section, []);
@@ -1096,6 +1098,12 @@ function Execution() {
       arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     }
     return map;
+  }, [tasks, labelFilter]);
+
+  const completedTasks = useMemo(() => {
+    const done = tasks.filter((t) => t.status === "done");
+    if (labelFilter !== "All") return done.filter((t) => t.label === labelFilter);
+    return done;
   }, [tasks, labelFilter]);
 
   /* ── Add task ── */
@@ -1149,6 +1157,18 @@ function Execution() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [expandedTaskId]);
+
+  /* ── Complete / Uncomplete ── */
+  function completeTask(id) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: "done", updated_at: new Date().toISOString() } : t)));
+    syncExec(() => supabase.from("tasks").update({ status: "done", updated_at: new Date().toISOString() }).eq("id", id));
+    if (expandedTaskId === id) setExpandedTaskId(null);
+  }
+
+  function uncompleteTask(id) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: "todo" } : t)));
+    syncExec(() => supabase.from("tasks").update({ status: "todo" }).eq("id", id));
+  }
 
   /* ── Delete ── */
   function deleteTask(id) {
@@ -1381,6 +1401,14 @@ function Execution() {
         >
           {isFocused ? "Expand All" : "Focus Execute"}
         </button>
+        {completedTasks.length > 0 && (
+          <button
+            className="completedToggle"
+            onClick={() => setShowCompleted((v) => !v)}
+          >
+            {showCompleted ? "Hide" : "Completed"} ({completedTasks.length})
+          </button>
+        )}
       </div>
       <nav className="execMobileTabBar">
         {SECTIONS.map((sec) => {
@@ -1449,6 +1477,11 @@ function Execution() {
                         onDragStart={(e) => onTaskDragStart(e, task.id)}
                         onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                       >
+                        <button
+                          className="execDoneBtn"
+                          onClick={(e) => { e.stopPropagation(); completeTask(task.id); }}
+                          title="Mark done"
+                        >&#10003;</button>
                         <span className="execTaskName">{task.title}</span>
                         {task.label && <CatBadge name={task.label} />}
                         {(task.subtasks || []).length > 0 && (
@@ -1497,6 +1530,31 @@ function Execution() {
           );
         })}
       </div>
+      {showCompleted && completedTasks.length > 0 && (
+        <div className="completedPanel">
+          <div className="completedHeader">
+            <span className="completedTitle">Completed</span>
+            <button className="completedClose" onClick={() => setShowCompleted(false)}>&times;</button>
+          </div>
+          <div className="completedList">
+            {completedTasks.map((task) => (
+              <div key={task.id} className="completedItem">
+                <button
+                  className="completedUndo"
+                  onClick={() => uncompleteTask(task.id)}
+                  title="Restore"
+                >&#8630;</button>
+                <span className="completedItemName">{task.title}</span>
+                {task.label && <CatBadge name={task.label} />}
+                <button
+                  className="execTaskDel"
+                  onClick={() => deleteTask(task.id)}
+                >&times;</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       </div>
 
       <aside className="execSidebar">
