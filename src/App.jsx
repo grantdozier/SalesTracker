@@ -142,6 +142,29 @@ function CatBadge({ name }) {
 /* ── App ──────────────────────────────────────────────────────── */
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (authLoading) return null;
+  if (!session) return <Login />;
+
+  return <Board />;
+}
+
+/* ── Board (authenticated) ───────────────────────────────────── */
+
+function Board() {
   const [columns] = useState(DEFAULT_COLUMNS);
   const [cards, setCards] = useState(() => {
     const saved = loadLocal();
@@ -536,6 +559,7 @@ export default function App() {
             onExport={handleExport}
             onImport={handleImport}
             onReset={resetBoard}
+            onSignOut={() => supabase.auth.signOut()}
           />
         </div>
       </header>
@@ -725,7 +749,7 @@ function AddDeal({ onAdd }) {
 
 /* ── OptionsMenu ──────────────────────────────────────────────── */
 
-function OptionsMenu({ onExport, onImport, onReset }) {
+function OptionsMenu({ onExport, onImport, onReset, onSignOut }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -765,6 +789,12 @@ function OptionsMenu({ onExport, onImport, onReset }) {
             onClick={() => { onReset(); setOpen(false); }}
           >
             Reset Board
+          </button>
+          <button
+            className="optionsItem"
+            onClick={() => { onSignOut(); setOpen(false); }}
+          >
+            Sign Out
           </button>
         </div>
       )}
@@ -917,6 +947,51 @@ function Editor({ card, columns, categories, onAddCategory, onChange, onDelete, 
         Created {new Date(card.createdAt).toLocaleDateString()} &middot; Updated{" "}
         {new Date(card.updatedAt).toLocaleDateString()}
       </div>
+    </div>
+  );
+}
+
+/* ── Login ────────────────────────────────────────────────────── */
+
+function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) setError(error.message);
+  }
+
+  return (
+    <div className="loginWrap">
+      <form className="loginBox" onSubmit={handleSubmit}>
+        <h1>Sales Board</h1>
+        <p className="muted" style={{ textAlign: "center" }}>Sign in to continue</p>
+        {error && <div className="loginError">{error}</div>}
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <button className="btn" type="submit" disabled={loading}>
+          {loading ? "..." : "Sign In"}
+        </button>
+      </form>
     </div>
   );
 }
