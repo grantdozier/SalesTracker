@@ -11,7 +11,6 @@ const DEFAULT_COLUMNS = [
   { id: "proposal", title: "Proposal", tip: "Scope + pricing delivered." },
   { id: "negotiation", title: "Negotiation", tip: "Terms being discussed. Decision pending." },
   { id: "won", title: "Won", tip: "Agreement reached." },
-  { id: "lost", title: "Lost", tip: "No longer pursuing." },
 ];
 
 /* ── Color palette for category badges ────────────────────────── */
@@ -227,7 +226,7 @@ export default function App() {
 
   const pipelineTotal = useMemo(() => {
     return cards
-      .filter((c) => c.columnId !== "won" && c.columnId !== "lost")
+      .filter((c) => c.columnId !== "won")
       .reduce((sum, c) => {
         const raw = String(c.value || "").trim().toLowerCase();
         const num = parseFloat(raw.replace(/[^0-9.]/g, ""));
