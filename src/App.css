@@ -780,32 +780,135 @@ select {
   background: #fff;
 }
 
-/* ── Quote sidebar ───────────────────────────────────────── */
+/* ── Sidebar (quote + appointments) ──────────────────────── */
 
-.execQuote {
-  width: 260px;
+.execSidebar {
+  width: 280px;
   flex-shrink: 0;
   position: sticky;
   top: 18px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+}
+
+.execQuoteCard {
   background: #fff;
   border: 1px solid #e4e7ec;
   border-radius: 14px;
   padding: 20px;
-  align-self: start;
 }
 
 .execQuoteText {
-  font-size: 15px;
+  font-size: 14px;
   font-style: italic;
   line-height: 1.5;
   color: #344054;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .execQuoteAuthor {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #667085;
+}
+
+/* ── Appointments ────────────────────────────────────────── */
+
+.execAppts {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.execApptHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.execApptTitle {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.apptGroup {
+  margin-bottom: 10px;
+}
+
+.apptGroupLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #667085;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  padding-left: 2px;
+}
+
+.apptRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.apptRow:hover {
+  background: #f9fafb;
+}
+
+.apptRow.selected {
+  background: #f2f4f7;
+}
+
+.apptDate {
+  font-size: 11px;
+  font-weight: 600;
+  color: #667085;
+  white-space: nowrap;
+  min-width: 44px;
+}
+
+.apptName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apptTime {
+  font-size: 11px;
+  color: #667085;
+  white-space: nowrap;
+}
+
+.apptEdit {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e4e7ec;
+}
+
+.apptAddForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.apptAddRow {
+  display: flex;
+  gap: 6px;
 }
 
 
@@ -979,10 +1082,11 @@ select {
     padding: 12px;
   }
 
-  .execQuote {
+  .execSidebar {
     width: 100%;
     position: static;
     order: -1;
+    max-height: none;
   }
 
   .execTargetCards {

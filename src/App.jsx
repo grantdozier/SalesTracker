@@ -980,6 +980,9 @@ function Execution() {
   const [backlogCount, setBacklogCount] = useState(0);
   const [newTask, setNewTask] = useState({ captured: "", committed: "", execute: "" });
   const [quote, setQuote] = useState(null);
+  const [appts, setAppts] = useState([]);
+  const [selectedAppt, setSelectedAppt] = useState(null);
+  const [showAddAppt, setShowAddAppt] = useState(false);
   const dragTaskRef = useRef(null);
 
   const SECTIONS = [
@@ -1013,6 +1016,12 @@ function Execution() {
       .select("id", { count: "exact", head: true })
       .eq("column_id", "backlog")
       .then(({ count }) => { setBacklogCount(count || 0); });
+
+    supabase
+      .from("appointments")
+      .select("*")
+      .order("date", { ascending: true })
+      .then(({ data }) => { if (data) setAppts(data); });
 
     // Quote of the day (cached in localStorage)
     const today = new Date().toISOString().slice(0, 10);
@@ -1188,6 +1197,45 @@ function Execution() {
     );
   }
 
+  /* ── Appointments ── */
+  function addAppt(title, date, time) {
+    const now = new Date().toISOString();
+    const appt = { id: uid(), title, date, time: time || "", related_deal_id: "", notes: "", created_at: now, updated_at: now };
+    setAppts((prev) => [...prev, appt].sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || "")));
+    supabase.from("appointments").insert(appt);
+  }
+
+  function updateAppt(id, patch) {
+    const now = new Date().toISOString();
+    setAppts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, ...patch, updated_at: now } : a))
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""))
+    );
+    supabase.from("appointments").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+  }
+
+  function deleteAppt(id) {
+    setAppts((prev) => prev.filter((a) => a.id !== id));
+    setSelectedAppt(null);
+    supabase.from("appointments").delete().eq("id", id);
+  }
+
+  const apptGroups = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const groups = { today: [], week: [], later: [] };
+    for (const a of appts) {
+      const d = new Date(a.date + "T00:00:00");
+      if (d.getTime() === today.getTime()) groups.today.push(a);
+      else if (d > today && d < weekEnd) groups.week.push(a);
+      else if (d >= weekEnd) groups.later.push(a);
+    }
+    return groups;
+  }, [appts]);
+
   const TARGETS = [
     { key: "backlog", label: "Backlog", goal: 500, value: backlogCount, auto: true },
     { key: "leads_added", label: "Leads", goal: 25 },
@@ -1313,17 +1361,121 @@ function Execution() {
       </div>
       </div>
 
-      <aside className="execQuote">
-        {quote ? (
-          <>
+      <aside className="execSidebar">
+        {quote && (
+          <div className="execQuoteCard">
             <div className="execQuoteText">&ldquo;{quote.text}&rdquo;</div>
             <div className="execQuoteAuthor">&mdash; {quote.author}</div>
-          </>
-        ) : (
-          <div className="muted small">Loading quote...</div>
+          </div>
         )}
+
+        <div className="execAppts">
+          <div className="execApptHeader">
+            <span className="execApptTitle">Upcoming</span>
+            <button className="btn" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => setShowAddAppt((v) => !v)}>+</button>
+          </div>
+
+          {showAddAppt && <AddAppt onAdd={(t, d, tm) => { addAppt(t, d, tm); setShowAddAppt(false); }} onCancel={() => setShowAddAppt(false)} />}
+
+          {apptGroups.today.length > 0 && (
+            <div className="apptGroup">
+              <div className="apptGroupLabel">Today</div>
+              {apptGroups.today.map((a) => (
+                <ApptRow key={a.id} appt={a} selected={selectedAppt === a.id} onSelect={() => setSelectedAppt(selectedAppt === a.id ? null : a.id)} onDelete={() => deleteAppt(a.id)} />
+              ))}
+            </div>
+          )}
+
+          {apptGroups.week.length > 0 && (
+            <div className="apptGroup">
+              <div className="apptGroupLabel">This Week</div>
+              {apptGroups.week.map((a) => (
+                <ApptRow key={a.id} appt={a} selected={selectedAppt === a.id} onSelect={() => setSelectedAppt(selectedAppt === a.id ? null : a.id)} onDelete={() => deleteAppt(a.id)} />
+              ))}
+            </div>
+          )}
+
+          {apptGroups.later.length > 0 && (
+            <div className="apptGroup">
+              <div className="apptGroupLabel">Later</div>
+              {apptGroups.later.map((a) => (
+                <ApptRow key={a.id} appt={a} selected={selectedAppt === a.id} onSelect={() => setSelectedAppt(selectedAppt === a.id ? null : a.id)} onDelete={() => deleteAppt(a.id)} />
+              ))}
+            </div>
+          )}
+
+          {apptGroups.today.length === 0 && apptGroups.week.length === 0 && apptGroups.later.length === 0 && !showAddAppt && (
+            <div className="muted small" style={{ padding: "8px 0" }}>No upcoming appointments.</div>
+          )}
+
+          {selectedAppt && (() => {
+            const a = appts.find((x) => x.id === selectedAppt);
+            if (!a) return null;
+            return (
+              <div className="apptEdit">
+                <label className="label">Title</label>
+                <input value={a.title} onChange={(e) => updateAppt(a.id, { title: e.target.value })} />
+                <label className="label">Date</label>
+                <input type="date" value={a.date} onChange={(e) => updateAppt(a.id, { date: e.target.value })} />
+                <label className="label">Time</label>
+                <input type="time" value={a.time || ""} onChange={(e) => updateAppt(a.id, { time: e.target.value })} />
+                <label className="label">Notes</label>
+                <textarea rows={3} value={a.notes || ""} onChange={(e) => updateAppt(a.id, { notes: e.target.value })} />
+                <div className="row">
+                  <button className="btn danger" style={{ fontSize: 11, padding: "6px 10px" }} onClick={() => deleteAppt(a.id)}>Delete</button>
+                  <button className="btn ghost" style={{ fontSize: 11, padding: "6px 10px" }} onClick={() => setSelectedAppt(null)}>Close</button>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       </aside>
     </div>
+  );
+}
+
+/* ── Appointment helpers ──────────────────────────────────────── */
+
+function ApptRow({ appt, selected, onSelect, onDelete }) {
+  const d = new Date(appt.date + "T00:00:00");
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const timeStr = appt.time
+    ? new Date("2000-01-01T" + appt.time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    : "";
+
+  return (
+    <div className={"apptRow" + (selected ? " selected" : "")} onClick={onSelect}>
+      <span className="apptDate">{dateStr}</span>
+      <span className="apptName">{appt.title}</span>
+      {timeStr && <span className="apptTime">{timeStr}</span>}
+      <button className="execTaskDel" onClick={(e) => { e.stopPropagation(); onDelete(); }}>&times;</button>
+    </div>
+  );
+}
+
+function AddAppt({ onAdd, onCancel }) {
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState("");
+
+  function submit(e) {
+    e.preventDefault();
+    if (!title.trim() || !date) return;
+    onAdd(title.trim(), date, time);
+  }
+
+  return (
+    <form className="apptAddForm" onSubmit={submit}>
+      <input autoFocus placeholder="Appointment title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <div className="apptAddRow">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+      </div>
+      <div className="row" style={{ marginTop: 6 }}>
+        <button className="btn" type="submit" style={{ fontSize: 11, padding: "6px 10px" }}>Add</button>
+        <button className="btn ghost" type="button" style={{ fontSize: 11, padding: "6px 10px" }} onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }
 
