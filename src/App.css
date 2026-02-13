@@ -729,51 +729,25 @@ select {
   border-bottom: none;
 }
 
-.execTaskInput {
+.execTaskName {
   flex: 1;
-  border: none;
-  background: transparent;
   font-size: 13px;
   font-weight: 600;
-  font-family: inherit;
-  padding: 0;
-  border-radius: 0;
   min-width: 0;
-  cursor: grab;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.execTaskInput:focus {
-  outline: none;
-  cursor: text;
-}
-
-.execStepsBtn {
-  background: #f2f4f7;
-  border: 1px solid #e4e7ec;
+.execStepsBadge {
+  background: #111;
+  color: #fff;
   border-radius: 6px;
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  color: #667085;
   flex-shrink: 0;
   white-space: nowrap;
-}
-
-.execStepsBtn:hover {
-  background: #e4e7ec;
-  color: #344054;
-}
-
-.execStepsBtn.hasSubs {
-  background: #111;
-  border-color: #111;
-  color: #fff;
-}
-
-.execStepsBtn.hasSubs:hover {
-  opacity: 0.85;
 }
 
 .execTaskDel {
@@ -907,6 +881,42 @@ select {
   font-size: 12px;
   padding: 8px 10px;
   border-radius: 8px;
+}
+
+.taskDetailClear {
+  background: none;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  color: #667085;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.taskDetailClear:hover {
+  color: #b42318;
+  border-color: #b42318;
+}
+
+.taskDetailDeleteLabel {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: #98a2b3;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+}
+
+.taskDetailDeleteLabel:hover {
+  color: #b42318;
 }
 
 /* ── Sidebar (quote + appointments) ──────────────────────── */

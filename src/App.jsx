@@ -1113,18 +1113,17 @@ function Execution() {
     syncExec(() => supabase.from("tasks").insert(task));
   }
 
-  /* ── Edit title ── */
-  function updateTaskTitle(id, title) {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
-  }
-
-  function saveTaskTitle(id) {
-    setTasks((prev) => {
-      const task = prev.find((t) => t.id === id);
-      if (task) syncExec(() => supabase.from("tasks").update({ title: task.title }).eq("id", id));
-      return prev;
-    });
-  }
+  /* ── Click outside to collapse ── */
+  useEffect(() => {
+    if (!expandedTaskId) return;
+    function handleClick(e) {
+      if (!e.target.closest(".execTaskWrap")) {
+        setExpandedTaskId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [expandedTaskId]);
 
   /* ── Delete ── */
   function deleteTask(id) {
@@ -1184,6 +1183,15 @@ function Execution() {
   function updateTaskField(id, patch) {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     syncExec(() => supabase.from("tasks").update(patch).eq("id", id));
+  }
+
+  function deleteLabel(name) {
+    if (!confirm(`Delete "${name}" label? It will be removed from all tasks.`)) return;
+    setLabels((prev) => prev.filter((l) => l !== name));
+    setTasks((prev) => prev.map((t) => (t.label === name ? { ...t, label: "" } : t)));
+    if (labelFilter === name) setLabelFilter("All");
+    syncExec(() => supabase.from("task_labels").delete().eq("name", name));
+    syncExec(() => supabase.from("tasks").update({ label: "" }).eq("label", name));
   }
 
   /* ── Drag-and-drop ── */
@@ -1382,23 +1390,13 @@ function Execution() {
                       onDragStart={(e) => onTaskDragStart(e, task.id)}
                       onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                     >
-                      <input
-                        className="execTaskInput"
-                        value={task.title}
-                        onChange={(e) => updateTaskTitle(task.id, e.target.value)}
-                        onBlur={() => saveTaskTitle(task.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <span className="execTaskName">{task.title}</span>
                       {task.label && <CatBadge name={task.label} />}
-                      <button
-                        className={"execStepsBtn" + ((task.subtasks || []).length > 0 ? " hasSubs" : "")}
-                        onClick={(e) => { e.stopPropagation(); setExpandedTaskId(expandedTaskId === task.id ? null : task.id); }}
-                      >
-                        {(task.subtasks || []).length > 0
-                          ? `${(task.subtasks || []).filter((s) => s.done).length}/${(task.subtasks || []).length}`
-                          : "+"
-                        }
-                      </button>
+                      {(task.subtasks || []).length > 0 && (
+                        <span className="execStepsBadge">
+                          {(task.subtasks || []).filter((s) => s.done).length}/{(task.subtasks || []).length}
+                        </span>
+                      )}
                       <button
                         className="execTaskDel"
                         onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
@@ -1412,6 +1410,7 @@ function Execution() {
                         task={task}
                         labels={labels}
                         onAddLabel={addLabel}
+                        onDeleteLabel={deleteLabel}
                         onUpdateField={(patch) => updateTaskField(task.id, patch)}
                         onToggleSubtask={(subId) => toggleSubtask(task.id, subId)}
                         onAddSubtask={(title) => addSubtask(task.id, title)}
@@ -1545,7 +1544,8 @@ function Execution() {
 
 /* ── Task detail panel ────────────────────────────────────────── */
 
-function TaskDetail({ task, labels, onAddLabel, onUpdateField, onToggleSubtask, onAddSubtask, onDeleteSubtask }) {
+function TaskDetail({ task, labels, onAddLabel, onDeleteLabel, onUpdateField, onToggleSubtask, onAddSubtask, onDeleteSubtask }) {
+  const [title, setTitle] = useState(task.title);
   const [addingLabel, setAddingLabel] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [notes, setNotes] = useState(task.notes || "");
@@ -1561,7 +1561,16 @@ function TaskDetail({ task, labels, onAddLabel, onUpdateField, onToggleSubtask, 
   }
 
   return (
-    <div className="taskDetail">
+    <div className="taskDetail" onClick={(e) => e.stopPropagation()}>
+      <div className="taskDetailField">
+        <label className="taskDetailLabel">Title</label>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => { if (title !== task.title) onUpdateField({ title }); }}
+        />
+      </div>
+
       <div className="taskDetailField">
         <label className="taskDetailLabel">Label</label>
         {!addingLabel ? (
@@ -1577,6 +1586,9 @@ function TaskDetail({ task, labels, onAddLabel, onUpdateField, onToggleSubtask, 
               {labels.map((l) => <option key={l} value={l}>{l}</option>)}
               <option value="__add_new__">+ Add new...</option>
             </select>
+            {task.label && (
+              <button className="taskDetailClear" onClick={() => onUpdateField({ label: "" })} title="Clear label">&times;</button>
+            )}
           </div>
         ) : (
           <form onSubmit={submitNewLabel} className="taskDetailRow">
@@ -1590,6 +1602,11 @@ function TaskDetail({ task, labels, onAddLabel, onUpdateField, onToggleSubtask, 
             <button className="btn" type="submit" style={{ padding: "6px 10px", fontSize: 11 }}>Add</button>
             <button className="btn ghost" type="button" onClick={() => setAddingLabel(false)} style={{ padding: "6px 10px", fontSize: 11 }}>Cancel</button>
           </form>
+        )}
+        {task.label && (
+          <button className="taskDetailDeleteLabel" onClick={() => onDeleteLabel(task.label)}>
+            Delete &ldquo;{task.label}&rdquo; from all tasks
+          </button>
         )}
       </div>
 
