@@ -979,6 +979,7 @@ function Execution() {
   const [targets, setTargets] = useState({});
   const [backlogCount, setBacklogCount] = useState(0);
   const [newTask, setNewTask] = useState({ captured: "", committed: "", execute: "" });
+  const [quote, setQuote] = useState(null);
   const dragTaskRef = useRef(null);
 
   const SECTIONS = [
@@ -1012,6 +1013,26 @@ function Execution() {
       .select("id", { count: "exact", head: true })
       .eq("column_id", "backlog")
       .then(({ count }) => { setBacklogCount(count || 0); });
+
+    // Quote of the day (cached in localStorage)
+    const today = new Date().toISOString().slice(0, 10);
+    const cached = localStorage.getItem("qotd");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.date === today) { setQuote(parsed); return; }
+      } catch { /* ignore */ }
+    }
+    fetch("https://zenquotes.io/api/today")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.[0]?.q) {
+          const q = { text: data[0].q, author: data[0].a, date: today };
+          setQuote(q);
+          localStorage.setItem("qotd", JSON.stringify(q));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   /* ── Derived: tasks grouped by section, sorted ── */
@@ -1176,6 +1197,7 @@ function Execution() {
 
   return (
     <div className="execWrap">
+      <div className="execMain">
       <div className="execTargets">
         <div className="execTargetsHeader">
           <span className="execTargetsTitle">Weekly Targets</span>
@@ -1288,6 +1310,21 @@ function Execution() {
           );
         })}
       </div>
+      </div>
+
+      <aside className="execQuote">
+        {quote ? (
+          <>
+            <div className="execQuoteText">&ldquo;{quote.text}&rdquo;</div>
+            <div className="execQuoteAuthor">&mdash; {quote.author}</div>
+          </>
+        ) : (
+          <div className="muted small">Loading quote...</div>
+        )}
+        <div className="execQuoteCredit">
+          <a href="https://zenquotes.io/" target="_blank" rel="noopener noreferrer">zenquotes.io</a>
+        </div>
+      </aside>
     </div>
   );
 }
