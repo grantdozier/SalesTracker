@@ -554,55 +554,48 @@ function Board() {
   return (
     <div className="wrap">
       <header className="header">
-        <div className="titleBlock">
-          <h1>Sales Board</h1>
-          <div className="sub">
-            Drag deals left &rarr; right &nbsp;
-            {pipelineTotal > 0 && (
-              <span className="pipeline">
-                Pipeline: {formatMoney(pipelineTotal)}
-              </span>
-            )}
-          </div>
-        </div>
+        <h1 className="headerTitle">Sales Board</h1>
+        {pipelineTotal > 0 && (
+          <span className="pipeline">
+            {formatMoney(pipelineTotal)}
+          </span>
+        )}
 
-        <div className="controls">
-          <input
-            className="search"
-            placeholder="Search deals..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        <input
+          className="search"
+          placeholder="Search deals..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
 
-          <select
-            className="filterSelect"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-          >
-            <option value="All">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+        <select
+          className="filterSelect"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+        >
+          <option value="All">All Categories</option>
+          {categories.map((cat) => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
 
-          <AddDeal onAdd={addCard} />
+        <AddDeal onAdd={addCard} />
 
-          {syncStatus && (
-            <span className={"syncBadge " + syncStatus}>
-              {syncStatus === "syncing"
-                ? "Syncing..."
-                : syncStatus === "synced"
-                ? "Synced"
-                : "Offline (local)"}
-            </span>
-          )}
+        {syncStatus && (
+          <span className={"syncBadge " + syncStatus}>
+            {syncStatus === "syncing"
+              ? "Syncing..."
+              : syncStatus === "synced"
+              ? "Synced"
+              : "Offline (local)"}
+          </span>
+        )}
 
-          <OptionsMenu
-            onExport={handleExport}
-            onImport={handleImport}
-            onReset={resetBoard}
-          />
-        </div>
+        <OptionsMenu
+          onExport={handleExport}
+          onImport={handleImport}
+          onReset={resetBoard}
+        />
       </header>
 
       <nav className="mobileTabBar">
