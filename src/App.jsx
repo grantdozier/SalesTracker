@@ -144,6 +144,7 @@ function CatBadge({ name }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("sales");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -159,7 +160,34 @@ export default function App() {
   if (authLoading) return null;
   if (!session) return <Login />;
 
-  return <Board />;
+  return (
+    <div>
+      <nav className="appNav">
+        <span className="appTitle">GrantOS</span>
+        <div className="appTabs">
+          <button
+            className={"appTab" + (activeTab === "sales" ? " active" : "")}
+            onClick={() => setActiveTab("sales")}
+          >
+            Sales
+          </button>
+          <button
+            className={"appTab" + (activeTab === "execution" ? " active" : "")}
+            onClick={() => setActiveTab("execution")}
+          >
+            Execution
+          </button>
+        </div>
+        <button
+          className="appSignOut"
+          onClick={() => supabase.auth.signOut()}
+        >
+          Sign Out
+        </button>
+      </nav>
+      {activeTab === "sales" ? <Board /> : <Execution />}
+    </div>
+  );
 }
 
 /* ── Board (authenticated) ───────────────────────────────────── */
@@ -559,7 +587,6 @@ function Board() {
             onExport={handleExport}
             onImport={handleImport}
             onReset={resetBoard}
-            onSignOut={() => supabase.auth.signOut()}
           />
         </div>
       </header>
@@ -749,7 +776,7 @@ function AddDeal({ onAdd }) {
 
 /* ── OptionsMenu ──────────────────────────────────────────────── */
 
-function OptionsMenu({ onExport, onImport, onReset, onSignOut }) {
+function OptionsMenu({ onExport, onImport, onReset }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -789,12 +816,6 @@ function OptionsMenu({ onExport, onImport, onReset, onSignOut }) {
             onClick={() => { onReset(); setOpen(false); }}
           >
             Reset Board
-          </button>
-          <button
-            className="optionsItem"
-            onClick={() => { onSignOut(); setOpen(false); }}
-          >
-            Sign Out
           </button>
         </div>
       )}
@@ -946,6 +967,246 @@ function Editor({ card, columns, categories, onAddCategory, onChange, onDelete, 
       <div className="muted small" style={{ marginTop: 12 }}>
         Created {new Date(card.createdAt).toLocaleDateString()} &middot; Updated{" "}
         {new Date(card.updatedAt).toLocaleDateString()}
+      </div>
+    </div>
+  );
+}
+
+/* ── Execution ────────────────────────────────────────────────── */
+
+function Execution() {
+  const [tasks, setTasks] = useState([]);
+  const [targets, setTargets] = useState({});
+  const [backlogCount, setBacklogCount] = useState(0);
+  const [newTask, setNewTask] = useState({ today: "", week: "", later: "" });
+
+  useEffect(() => {
+    supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (data) setTasks(data);
+      });
+
+    supabase
+      .from("weekly_targets")
+      .select("*")
+      .then(({ data }) => {
+        if (data) {
+          const obj = {};
+          data.forEach((r) => {
+            obj[r.key] = r.value;
+          });
+          setTargets(obj);
+        }
+      });
+
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("column_id", "backlog")
+      .then(({ count }) => {
+        setBacklogCount(count || 0);
+      });
+  }, []);
+
+  function addTask(section) {
+    const title = newTask[section].trim();
+    if (!title) return;
+    const now = new Date().toISOString();
+    const task = {
+      id: uid(),
+      title,
+      section,
+      status: "todo",
+      sort_order: 0,
+      created_at: now,
+      updated_at: now,
+    };
+    setTasks((prev) => [...prev, task]);
+    setNewTask((prev) => ({ ...prev, [section]: "" }));
+    supabase.from("tasks").insert(task);
+  }
+
+  function updateTaskTitle(id, title) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+  }
+
+  function saveTaskTitle(id) {
+    setTasks((prev) => {
+      const task = prev.find((t) => t.id === id);
+      if (task) {
+        supabase.from("tasks").update({ title: task.title }).eq("id", id);
+      }
+      return prev;
+    });
+  }
+
+  function toggleTask(id) {
+    setTasks((prev) => {
+      const task = prev.find((t) => t.id === id);
+      if (!task) return prev;
+      const newStatus = task.status === "done" ? "todo" : "done";
+      supabase.from("tasks").update({ status: newStatus }).eq("id", id);
+      return prev.map((t) =>
+        t.id === id ? { ...t, status: newStatus } : t
+      );
+    });
+  }
+
+  function moveTask(id, section) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, section } : t)));
+    supabase.from("tasks").update({ section }).eq("id", id);
+  }
+
+  function deleteTask(id) {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    supabase.from("tasks").delete().eq("id", id);
+  }
+
+  function updateTarget(key, delta) {
+    const newVal = Math.max(0, (targets[key] || 0) + delta);
+    setTargets((prev) => ({ ...prev, [key]: newVal }));
+    supabase.from("weekly_targets").update({ value: newVal }).eq("key", key);
+  }
+
+  function resetTargets() {
+    if (!confirm("Reset all weekly counters to 0?")) return;
+    setTargets({
+      leads_added: 0,
+      meetings_booked: 0,
+      proposals_sent: 0,
+      federal_proposals: 0,
+    });
+    ["leads_added", "meetings_booked", "proposals_sent", "federal_proposals"].forEach(
+      (key) => {
+        supabase.from("weekly_targets").update({ value: 0 }).eq("key", key);
+      }
+    );
+  }
+
+  const TARGETS = [
+    { key: "backlog", label: "Backlog", goal: 500, value: backlogCount, auto: true },
+    { key: "leads_added", label: "Leads", goal: 25 },
+    { key: "meetings_booked", label: "Meetings", goal: 8 },
+    { key: "proposals_sent", label: "Proposals", goal: 3 },
+    { key: "federal_proposals", label: "Federal", goal: 2 },
+  ];
+
+  const SECTIONS = [
+    { id: "today", title: "Today" },
+    { id: "week", title: "This Week" },
+    { id: "later", title: "Later" },
+  ];
+
+  return (
+    <div className="execWrap">
+      <div className="execTargets">
+        <div className="execTargetsHeader">
+          <span className="execTargetsTitle">Weekly Targets</span>
+          <button
+            className="btn ghost"
+            onClick={resetTargets}
+            style={{ fontSize: 11, padding: "4px 10px" }}
+          >
+            Reset
+          </button>
+        </div>
+        <div className="execTargetCards">
+          {TARGETS.map((t) => {
+            const val = t.auto ? t.value : targets[t.key] || 0;
+            return (
+              <div key={t.key} className="execTargetCard">
+                <div className="execTargetValue">
+                  {val}
+                  <span className="execTargetGoal">/{t.goal}</span>
+                </div>
+                <div className="execTargetLabel">{t.label}</div>
+                {!t.auto && (
+                  <div className="execTargetBtns">
+                    <button onClick={() => updateTarget(t.key, -1)}>−</button>
+                    <button onClick={() => updateTarget(t.key, 1)}>+</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="execGrid">
+        {SECTIONS.map((sec) => {
+          const secTasks = tasks.filter((t) => t.section === sec.id);
+          const todo = secTasks.filter((t) => t.status !== "done");
+          const done = secTasks.filter((t) => t.status === "done");
+          return (
+            <div key={sec.id} className="execCol">
+              <div className="execColHeader">
+                <span className="execColTitle">{sec.title}</span>
+                <span className="colCount">{todo.length}</span>
+              </div>
+              <div className="execTaskList">
+                {[...todo, ...done].map((task) => (
+                  <div
+                    key={task.id}
+                    className={
+                      "execTask" + (task.status === "done" ? " done" : "")
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={task.status === "done"}
+                      onChange={() => toggleTask(task.id)}
+                      className="execCheck"
+                    />
+                    <input
+                      className="execTaskInput"
+                      value={task.title}
+                      onChange={(e) => updateTaskTitle(task.id, e.target.value)}
+                      onBlur={() => saveTaskTitle(task.id)}
+                    />
+                    <select
+                      className="execTaskMove"
+                      value={task.section}
+                      onChange={(e) => moveTask(task.id, e.target.value)}
+                    >
+                      <option value="today">Today</option>
+                      <option value="week">Week</option>
+                      <option value="later">Later</option>
+                    </select>
+                    <button
+                      className="execTaskDel"
+                      onClick={() => deleteTask(task.id)}
+                      title="Delete"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+                <form
+                  className="execAddForm"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addTask(sec.id);
+                  }}
+                >
+                  <input
+                    className="execAddInput"
+                    placeholder="Add task..."
+                    value={newTask[sec.id]}
+                    onChange={(e) =>
+                      setNewTask((prev) => ({
+                        ...prev,
+                        [sec.id]: e.target.value,
+                      }))
+                    }
+                  />
+                </form>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
