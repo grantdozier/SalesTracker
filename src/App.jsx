@@ -991,6 +991,8 @@ function Execution() {
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showAddAppt, setShowAddAppt] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [labels, setLabels] = useState([]);
+  const [labelFilter, setLabelFilter] = useState("All");
   const [execSync, setExecSync] = useState("syncing");
   const dragTaskRef = useRef(null);
 
@@ -1022,10 +1024,10 @@ function Execution() {
       supabase.from("appointments").select("*").order("date", { ascending: true }),
       supabase.from("weekly_targets").select("*"),
       supabase.from("deals").select("id", { count: "exact", head: true }).eq("column_id", "backlog"),
-    ]).then(([tasksRes, apptsRes, targetsRes, backlogRes]) => {
+      supabase.from("task_labels").select("name").order("name"),
+    ]).then(([tasksRes, apptsRes, targetsRes, backlogRes, labelsRes]) => {
       if (tasksRes.error || apptsRes.error) {
         console.error("Exec load errors:", tasksRes.error, apptsRes.error);
-        // Fallback to localStorage
         try {
           const local = JSON.parse(localStorage.getItem("exec_data") || "{}");
           if (local.tasks) setTasks(local.tasks);
@@ -1043,6 +1045,9 @@ function Execution() {
         setTargets(obj);
       }
       setBacklogCount(backlogRes.count || 0);
+      if (!labelsRes.error && labelsRes.data) {
+        setLabels(labelsRes.data.map((r) => r.name));
+      }
       setExecSync("synced");
     });
 
@@ -1075,8 +1080,9 @@ function Execution() {
 
   /* ── Derived: tasks grouped by section, sorted ── */
   const tasksBySection = useMemo(() => {
+    const filtered = labelFilter === "All" ? tasks : tasks.filter((t) => t.label === labelFilter);
     const map = new Map(SECTIONS.map((s) => [s.id, []]));
-    for (const t of tasks) {
+    for (const t of filtered) {
       if (!map.has(t.section)) map.set(t.section, []);
       map.get(t.section).push(t);
     }
@@ -1084,7 +1090,7 @@ function Execution() {
       arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     }
     return map;
-  }, [tasks]);
+  }, [tasks, labelFilter]);
 
   /* ── Add task ── */
   function addTask(section) {
@@ -1163,6 +1169,19 @@ function Execution() {
       if (task) syncExec(() => supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId));
       return next;
     });
+  }
+
+  /* ── Labels ── */
+  function addLabel(name) {
+    const trimmed = name.trim();
+    if (!trimmed || labels.includes(trimmed)) return;
+    setLabels((prev) => [...prev, trimmed].sort());
+    syncExec(() => supabase.from("task_labels").insert({ name: trimmed }));
+  }
+
+  function updateTaskField(id, patch) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    syncExec(() => supabase.from("tasks").update(patch).eq("id", id));
   }
 
   /* ── Drag-and-drop ── */
@@ -1311,6 +1330,16 @@ function Execution() {
   return (
     <div className="execWrap">
       <div className="execMain">
+      <div className="execFilterBar">
+        <select
+          className="filterSelect"
+          value={labelFilter}
+          onChange={(e) => setLabelFilter(e.target.value)}
+        >
+          <option value="All">All Labels</option>
+          {labels.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+      </div>
       <div className="execGrid">
         {SECTIONS.map((sec) => {
           const secTasks = tasksBySection.get(sec.id) || [];
@@ -1349,13 +1378,16 @@ function Execution() {
                       className={"execTask" + (expandedTaskId === task.id ? " expanded" : "")}
                       draggable
                       onDragStart={(e) => onTaskDragStart(e, task.id)}
+                      onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                     >
                       <input
                         className="execTaskInput"
                         value={task.title}
                         onChange={(e) => updateTaskTitle(task.id, e.target.value)}
                         onBlur={() => saveTaskTitle(task.id)}
+                        onClick={(e) => e.stopPropagation()}
                       />
+                      {task.label && <CatBadge name={task.label} />}
                       <button
                         className={"execStepsBtn" + ((task.subtasks || []).length > 0 ? " hasSubs" : "")}
                         onClick={(e) => { e.stopPropagation(); setExpandedTaskId(expandedTaskId === task.id ? null : task.id); }}
@@ -1367,17 +1399,21 @@ function Execution() {
                       </button>
                       <button
                         className="execTaskDel"
-                        onClick={() => deleteTask(task.id)}
+                        onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
                       >
                         &times;
                       </button>
                     </div>
                     {expandedTaskId === task.id && (
-                      <SubtaskList
-                        subtasks={task.subtasks || []}
-                        onToggle={(subId) => toggleSubtask(task.id, subId)}
-                        onAdd={(title) => addSubtask(task.id, title)}
-                        onDelete={(subId) => deleteSubtask(task.id, subId)}
+                      <TaskDetail
+                        key={task.id}
+                        task={task}
+                        labels={labels}
+                        onAddLabel={addLabel}
+                        onUpdateField={(patch) => updateTaskField(task.id, patch)}
+                        onToggleSubtask={(subId) => toggleSubtask(task.id, subId)}
+                        onAddSubtask={(title) => addSubtask(task.id, title)}
+                        onDeleteSubtask={(subId) => deleteSubtask(task.id, subId)}
                       />
                     )}
                   </div>
@@ -1505,41 +1541,100 @@ function Execution() {
   );
 }
 
-/* ── Subtask list ─────────────────────────────────────────────── */
+/* ── Task detail panel ────────────────────────────────────────── */
 
-function SubtaskList({ subtasks, onToggle, onAdd, onDelete }) {
-  const [value, setValue] = useState("");
+function TaskDetail({ task, labels, onAddLabel, onUpdateField, onToggleSubtask, onAddSubtask, onDeleteSubtask }) {
+  const [addingLabel, setAddingLabel] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [notes, setNotes] = useState(task.notes || "");
+  const [subValue, setSubValue] = useState("");
+
+  function submitNewLabel(e) {
+    e.preventDefault();
+    if (!newLabel.trim()) return;
+    onAddLabel(newLabel.trim());
+    onUpdateField({ label: newLabel.trim() });
+    setNewLabel("");
+    setAddingLabel(false);
+  }
 
   return (
-    <div className="subList">
-      {subtasks.map((s) => (
-        <div key={s.id} className={"subItem" + (s.done ? " done" : "")}>
-          <input
-            type="checkbox"
-            checked={s.done}
-            onChange={() => onToggle(s.id)}
-            className="subCheck"
-          />
-          <span className="subTitle">{s.title}</span>
-          <button className="execTaskDel" onClick={() => onDelete(s.id)}>&times;</button>
+    <div className="taskDetail">
+      <div className="taskDetailField">
+        <label className="taskDetailLabel">Label</label>
+        {!addingLabel ? (
+          <div className="taskDetailRow">
+            <select
+              value={task.label || ""}
+              onChange={(e) => {
+                if (e.target.value === "__add_new__") setAddingLabel(true);
+                else onUpdateField({ label: e.target.value });
+              }}
+            >
+              <option value="">None</option>
+              {labels.map((l) => <option key={l} value={l}>{l}</option>)}
+              <option value="__add_new__">+ Add new...</option>
+            </select>
+          </div>
+        ) : (
+          <form onSubmit={submitNewLabel} className="taskDetailRow">
+            <input
+              autoFocus
+              placeholder="Label name"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button className="btn" type="submit" style={{ padding: "6px 10px", fontSize: 11 }}>Add</button>
+            <button className="btn ghost" type="button" onClick={() => setAddingLabel(false)} style={{ padding: "6px 10px", fontSize: 11 }}>Cancel</button>
+          </form>
+        )}
+      </div>
+
+      <div className="taskDetailField">
+        <label className="taskDetailLabel">Notes</label>
+        <textarea
+          rows={3}
+          placeholder="Add notes..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          onBlur={() => { if (notes !== (task.notes || "")) onUpdateField({ notes }); }}
+        />
+      </div>
+
+      <div className="taskDetailField">
+        <label className="taskDetailLabel">Steps</label>
+        <div className="subList">
+          {(task.subtasks || []).map((s) => (
+            <div key={s.id} className={"subItem" + (s.done ? " done" : "")}>
+              <input
+                type="checkbox"
+                checked={s.done}
+                onChange={() => onToggleSubtask(s.id)}
+                className="subCheck"
+              />
+              <span className="subTitle">{s.title}</span>
+              <button className="execTaskDel" onClick={() => onDeleteSubtask(s.id)}>&times;</button>
+            </div>
+          ))}
+          {(task.subtasks || []).length < 7 && (
+            <form
+              className="subAddForm"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (subValue.trim()) { onAddSubtask(subValue.trim()); setSubValue(""); }
+              }}
+            >
+              <input
+                className="subAddInput"
+                placeholder="Add step..."
+                value={subValue}
+                onChange={(e) => setSubValue(e.target.value)}
+              />
+            </form>
+          )}
         </div>
-      ))}
-      {subtasks.length < 7 && (
-        <form
-          className="subAddForm"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (value.trim()) { onAdd(value.trim()); setValue(""); }
-          }}
-        >
-          <input
-            className="subAddInput"
-            placeholder="Add step..."
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
-        </form>
-      )}
+      </div>
     </div>
   );
 }
