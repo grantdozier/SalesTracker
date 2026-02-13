@@ -4,14 +4,14 @@ import { supabase } from "./supabase";
 const STORAGE_KEY = "sales_board_v1";
 
 const DEFAULT_COLUMNS = [
-  { id: "backlog", title: "Backlog" },
-  { id: "contacted", title: "Contacted" },
-  { id: "meetings", title: "Meetings" },
-  { id: "qualified", title: "Qualified" },
-  { id: "proposal", title: "Proposal" },
-  { id: "negotiation", title: "Negotiation" },
-  { id: "won", title: "Won" },
-  { id: "lost", title: "Lost" },
+  { id: "backlog", title: "Backlog", tip: "Potential contact. No outreach yet." },
+  { id: "contacted", title: "Contacted", tip: "Outreach made. Awaiting response." },
+  { id: "meetings", title: "Meetings", tip: "Time booked. Conversation pending." },
+  { id: "qualified", title: "Qualified", tip: "Pain confirmed. Solution viable. Budget potential." },
+  { id: "proposal", title: "Proposal", tip: "Scope + pricing delivered." },
+  { id: "negotiation", title: "Negotiation", tip: "Terms being discussed. Decision pending." },
+  { id: "won", title: "Won", tip: "Agreement reached." },
+  { id: "lost", title: "Lost", tip: "No longer pursuing." },
 ];
 
 /* ── Color palette for category badges ────────────────────────── */
@@ -551,7 +551,10 @@ export default function App() {
               onDragOver={onDragOver}
             >
               <div className="colHeader">
-                <div className="colTitle">{col.title}</div>
+                <div className="colTitleWrap">
+                  <div className="colTitle">{col.title}</div>
+                  {col.tip && <div className="colTip">{col.tip}</div>}
+                </div>
                 <div className="colCount">{colCards.length}</div>
               </div>
 
