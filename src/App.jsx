@@ -154,6 +154,7 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [selectedId, setSelectedId] = useState(null);
   const [syncStatus, setSyncStatus] = useState("syncing");
+  const [mobileCol, setMobileCol] = useState("backlog");
 
   const dragCardIdRef = useRef(null);
 
@@ -540,13 +541,28 @@ export default function App() {
         </div>
       </header>
 
+      <nav className="mobileTabBar">
+        {columns.map((col) => {
+          const count = (cardsByColumn.get(col.id) || []).length;
+          return (
+            <button
+              key={col.id}
+              className={"mobileTab" + (mobileCol === col.id ? " active" : "")}
+              onClick={() => setMobileCol(col.id)}
+            >
+              {col.title} <span className="mobileTabCount">{count}</span>
+            </button>
+          );
+        })}
+      </nav>
+
       <main className="board">
         {columns.map((col) => {
           const colCards = cardsByColumn.get(col.id) || [];
           return (
             <section
               key={col.id}
-              className="column"
+              className={"column" + (col.id === mobileCol ? " mobileActive" : "")}
               onDrop={(e) => onDropColumn(e, col.id)}
               onDragOver={onDragOver}
             >
@@ -637,7 +653,7 @@ export default function App() {
           );
         })}
 
-        <aside className="panel">
+        <aside className={"panel" + (selected ? " mobileOpen" : "")}>
           {selected ? (
             <Editor
               card={selected}
