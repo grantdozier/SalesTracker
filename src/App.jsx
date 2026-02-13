@@ -978,13 +978,20 @@ function Execution() {
   const [tasks, setTasks] = useState([]);
   const [targets, setTargets] = useState({});
   const [backlogCount, setBacklogCount] = useState(0);
-  const [newTask, setNewTask] = useState({ today: "", week: "", later: "" });
+  const [newTask, setNewTask] = useState({ captured: "", committed: "", execute: "" });
+  const dragTaskRef = useRef(null);
+
+  const SECTIONS = [
+    { id: "captured", title: "Captured" },
+    { id: "committed", title: "Committed" },
+    { id: "execute", title: "Execute" },
+  ];
 
   useEffect(() => {
     supabase
       .from("tasks")
       .select("*")
-      .order("created_at", { ascending: true })
+      .order("sort_order", { ascending: true })
       .then(({ data }) => {
         if (data) setTasks(data);
       });
@@ -995,9 +1002,7 @@ function Execution() {
       .then(({ data }) => {
         if (data) {
           const obj = {};
-          data.forEach((r) => {
-            obj[r.key] = r.value;
-          });
+          data.forEach((r) => { obj[r.key] = r.value; });
           setTargets(obj);
         }
       });
@@ -1006,29 +1011,41 @@ function Execution() {
       .from("deals")
       .select("id", { count: "exact", head: true })
       .eq("column_id", "backlog")
-      .then(({ count }) => {
-        setBacklogCount(count || 0);
-      });
+      .then(({ count }) => { setBacklogCount(count || 0); });
   }, []);
 
+  /* ── Derived: tasks grouped by section, sorted ── */
+  const tasksBySection = useMemo(() => {
+    const map = new Map(SECTIONS.map((s) => [s.id, []]));
+    for (const t of tasks) {
+      if (!map.has(t.section)) map.set(t.section, []);
+      map.get(t.section).push(t);
+    }
+    for (const [, arr] of map) {
+      arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    }
+    return map;
+  }, [tasks]);
+
+  /* ── Add task ── */
   function addTask(section) {
     const title = newTask[section].trim();
     if (!title) return;
     const now = new Date().toISOString();
+    const secTasks = tasksBySection.get(section) || [];
+    const maxOrder = secTasks.length > 0
+      ? Math.max(...secTasks.map((t) => t.sort_order ?? 0)) + 1
+      : 0;
     const task = {
-      id: uid(),
-      title,
-      section,
-      status: "todo",
-      sort_order: 0,
-      created_at: now,
-      updated_at: now,
+      id: uid(), title, section, status: "todo",
+      sort_order: maxOrder, created_at: now, updated_at: now,
     };
     setTasks((prev) => [...prev, task]);
     setNewTask((prev) => ({ ...prev, [section]: "" }));
     supabase.from("tasks").insert(task);
   }
 
+  /* ── Edit title ── */
   function updateTaskTitle(id, title) {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
   }
@@ -1036,35 +1053,105 @@ function Execution() {
   function saveTaskTitle(id) {
     setTasks((prev) => {
       const task = prev.find((t) => t.id === id);
-      if (task) {
-        supabase.from("tasks").update({ title: task.title }).eq("id", id);
-      }
+      if (task) supabase.from("tasks").update({ title: task.title }).eq("id", id);
       return prev;
     });
   }
 
+  /* ── Toggle done ── */
   function toggleTask(id) {
     setTasks((prev) => {
       const task = prev.find((t) => t.id === id);
       if (!task) return prev;
       const newStatus = task.status === "done" ? "todo" : "done";
       supabase.from("tasks").update({ status: newStatus }).eq("id", id);
-      return prev.map((t) =>
-        t.id === id ? { ...t, status: newStatus } : t
-      );
+      return prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t));
     });
   }
 
-  function moveTask(id, section) {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, section } : t)));
-    supabase.from("tasks").update({ section }).eq("id", id);
-  }
-
+  /* ── Delete ── */
   function deleteTask(id) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     supabase.from("tasks").delete().eq("id", id);
   }
 
+  /* ── Drag-and-drop ── */
+  function onTaskDragStart(e, taskId) {
+    dragTaskRef.current = taskId;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", taskId);
+  }
+
+  function onTaskDropOnTask(e, targetId, position) {
+    e.preventDefault();
+    e.stopPropagation();
+    const taskId = e.dataTransfer.getData("text/plain") || dragTaskRef.current;
+    if (!taskId || taskId === targetId) return;
+    const target = tasks.find((t) => t.id === targetId);
+    if (!target) return;
+    reorderTask(taskId, target.section, targetId, position);
+    dragTaskRef.current = null;
+  }
+
+  function onTaskDropOnSection(e, sectionId) {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("text/plain") || dragTaskRef.current;
+    if (!taskId) return;
+    const secTasks = tasksBySection.get(sectionId) || [];
+    const maxOrder = secTasks.length > 0
+      ? Math.max(...secTasks.map((t) => t.sort_order ?? 0)) + 1
+      : 0;
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, section: sectionId, sort_order: maxOrder } : t
+      )
+    );
+    setTimeout(() => {
+      setTasks((prev) => {
+        const latest = prev.find((t) => t.id === taskId);
+        if (latest) {
+          supabase.from("tasks").update({ section: latest.section, sort_order: latest.sort_order }).eq("id", taskId);
+        }
+        return prev;
+      });
+    }, 50);
+    dragTaskRef.current = null;
+  }
+
+  function reorderTask(taskId, targetSection, targetId, position) {
+    setTasks((prev) => {
+      const colTasks = prev
+        .filter((t) => t.section === targetSection && t.id !== taskId)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      const targetIdx = colTasks.findIndex((t) => t.id === targetId);
+      const insertIdx = position === "above" ? targetIdx : targetIdx + 1;
+      const dragged = prev.find((t) => t.id === taskId);
+      if (!dragged) return prev;
+      colTasks.splice(insertIdx, 0, { ...dragged, section: targetSection });
+
+      const updates = new Map();
+      colTasks.forEach((t, i) => updates.set(t.id, i));
+
+      const next = prev.map((t) => {
+        if (updates.has(t.id)) {
+          return { ...t, section: targetSection, sort_order: updates.get(t.id) };
+        }
+        return t;
+      });
+
+      // Batch sync
+      const toSync = next.filter((t) => t.section === targetSection);
+      Promise.all(
+        toSync.map((t) =>
+          supabase.from("tasks").update({ sort_order: t.sort_order, section: t.section }).eq("id", t.id)
+        )
+      );
+
+      return next;
+    });
+  }
+
+  /* ── Targets ── */
   function updateTarget(key, delta) {
     const newVal = Math.max(0, (targets[key] || 0) + delta);
     setTargets((prev) => ({ ...prev, [key]: newVal }));
@@ -1073,16 +1160,9 @@ function Execution() {
 
   function resetTargets() {
     if (!confirm("Reset all weekly counters to 0?")) return;
-    setTargets({
-      leads_added: 0,
-      meetings_booked: 0,
-      proposals_sent: 0,
-      federal_proposals: 0,
-    });
+    setTargets({ leads_added: 0, meetings_booked: 0, proposals_sent: 0, federal_proposals: 0 });
     ["leads_added", "meetings_booked", "proposals_sent", "federal_proposals"].forEach(
-      (key) => {
-        supabase.from("weekly_targets").update({ value: 0 }).eq("key", key);
-      }
+      (key) => supabase.from("weekly_targets").update({ value: 0 }).eq("key", key)
     );
   }
 
@@ -1092,12 +1172,6 @@ function Execution() {
     { key: "meetings_booked", label: "Meetings", goal: 8 },
     { key: "proposals_sent", label: "Proposals", goal: 3 },
     { key: "federal_proposals", label: "Federal", goal: 2 },
-  ];
-
-  const SECTIONS = [
-    { id: "today", title: "Today" },
-    { id: "week", title: "This Week" },
-    { id: "later", title: "Later" },
   ];
 
   return (
@@ -1137,74 +1211,80 @@ function Execution() {
 
       <div className="execGrid">
         {SECTIONS.map((sec) => {
-          const secTasks = tasks.filter((t) => t.section === sec.id);
-          const todo = secTasks.filter((t) => t.status !== "done");
-          const done = secTasks.filter((t) => t.status === "done");
+          const secTasks = tasksBySection.get(sec.id) || [];
+          const todoCount = secTasks.filter((t) => t.status !== "done").length;
           return (
-            <div key={sec.id} className="execCol">
+            <section
+              key={sec.id}
+              className="execCol"
+              onDrop={(e) => onTaskDropOnSection(e, sec.id)}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+            >
               <div className="execColHeader">
                 <span className="execColTitle">{sec.title}</span>
-                <span className="colCount">{todo.length}</span>
+                <span className="colCount">{todoCount}</span>
               </div>
               <div className="execTaskList">
-                {[...todo, ...done].map((task) => (
+                {secTasks.map((task) => (
                   <div
                     key={task.id}
-                    className={
-                      "execTask" + (task.status === "done" ? " done" : "")
-                    }
+                    className="execTaskWrap"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const mid = rect.top + rect.height / 2;
+                      e.currentTarget.setAttribute("data-drop", e.clientY < mid ? "above" : "below");
+                    }}
+                    onDragLeave={(e) => e.currentTarget.removeAttribute("data-drop")}
+                    onDrop={(e) => {
+                      const pos = e.currentTarget.getAttribute("data-drop") || "below";
+                      e.currentTarget.removeAttribute("data-drop");
+                      onTaskDropOnTask(e, task.id, pos);
+                    }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={task.status === "done"}
-                      onChange={() => toggleTask(task.id)}
-                      className="execCheck"
-                    />
-                    <input
-                      className="execTaskInput"
-                      value={task.title}
-                      onChange={(e) => updateTaskTitle(task.id, e.target.value)}
-                      onBlur={() => saveTaskTitle(task.id)}
-                    />
-                    <select
-                      className="execTaskMove"
-                      value={task.section}
-                      onChange={(e) => moveTask(task.id, e.target.value)}
+                    <div
+                      className={"execTask" + (task.status === "done" ? " done" : "")}
+                      draggable
+                      onDragStart={(e) => onTaskDragStart(e, task.id)}
                     >
-                      <option value="today">Today</option>
-                      <option value="week">Week</option>
-                      <option value="later">Later</option>
-                    </select>
-                    <button
-                      className="execTaskDel"
-                      onClick={() => deleteTask(task.id)}
-                      title="Delete"
-                    >
-                      &times;
-                    </button>
+                      <input
+                        type="checkbox"
+                        checked={task.status === "done"}
+                        onChange={() => toggleTask(task.id)}
+                        className="execCheck"
+                      />
+                      <input
+                        className="execTaskInput"
+                        value={task.title}
+                        onChange={(e) => updateTaskTitle(task.id, e.target.value)}
+                        onBlur={() => saveTaskTitle(task.id)}
+                      />
+                      <button
+                        className="execTaskDel"
+                        onClick={() => deleteTask(task.id)}
+                        title="Delete"
+                      >
+                        &times;
+                      </button>
+                    </div>
                   </div>
                 ))}
                 <form
                   className="execAddForm"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    addTask(sec.id);
-                  }}
+                  onSubmit={(e) => { e.preventDefault(); addTask(sec.id); }}
                 >
                   <input
                     className="execAddInput"
                     placeholder="Add task..."
                     value={newTask[sec.id]}
                     onChange={(e) =>
-                      setNewTask((prev) => ({
-                        ...prev,
-                        [sec.id]: e.target.value,
-                      }))
+                      setNewTask((prev) => ({ ...prev, [sec.id]: e.target.value }))
                     }
                   />
                 </form>
               </div>
-            </div>
+            </section>
           );
         })}
       </div>
