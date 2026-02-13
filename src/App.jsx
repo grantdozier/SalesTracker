@@ -1371,39 +1371,28 @@ function Execution() {
                     }}
                   >
                     <div
-                      className={"execTask" + (task.status === "done" ? " done" : "")}
+                      className={"execTask" + (expandedTaskId === task.id ? " expanded" : "")}
                       draggable
                       onDragStart={(e) => onTaskDragStart(e, task.id)}
                     >
-                      <span className="execDragHandle">&#x2847;</span>
-                      <input
-                        type="checkbox"
-                        checked={task.status === "done"}
-                        onChange={() => toggleTask(task.id)}
-                        className="execCheck"
-                      />
                       <input
                         className="execTaskInput"
                         value={task.title}
                         onChange={(e) => updateTaskTitle(task.id, e.target.value)}
                         onBlur={() => saveTaskTitle(task.id)}
                       />
-                      {(task.subtasks || []).length > 0 && (
-                        <span className="subBadge">
-                          {(task.subtasks || []).filter((s) => s.done).length}/{(task.subtasks || []).length}
-                        </span>
-                      )}
                       <button
-                        className="execTaskExpand"
+                        className={"execStepsBtn" + ((task.subtasks || []).length > 0 ? " hasSubs" : "")}
                         onClick={(e) => { e.stopPropagation(); setExpandedTaskId(expandedTaskId === task.id ? null : task.id); }}
-                        title="Steps"
                       >
-                        {expandedTaskId === task.id ? "\u25BE" : "\u25B8"}
+                        {(task.subtasks || []).length > 0
+                          ? `${(task.subtasks || []).filter((s) => s.done).length}/${(task.subtasks || []).length}`
+                          : "+"
+                        }
                       </button>
                       <button
                         className="execTaskDel"
                         onClick={() => deleteTask(task.id)}
-                        title="Delete"
                       >
                         &times;
                       </button>
