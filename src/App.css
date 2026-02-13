@@ -695,11 +695,10 @@ select {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: #f9fafb;
   border: 1px solid #eaecf0;
-  cursor: grab;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
 
@@ -708,12 +707,22 @@ select {
   box-shadow: 0 2px 8px rgba(16, 24, 40, 0.06);
 }
 
-.execTask:active {
-  cursor: grabbing;
-}
-
 .execTask.done {
   opacity: 0.45;
+}
+
+.execDragHandle {
+  cursor: grab;
+  color: #d0d5dd;
+  font-size: 14px;
+  user-select: none;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.execDragHandle:active {
+  cursor: grabbing;
+  color: #667085;
 }
 
 .execCheck {

@@ -38,6 +38,19 @@ function catColor(name) {
   return CAT_COLORS[Math.abs(hash) % CAT_COLORS.length];
 }
 
+const TIME_SLOTS = (() => {
+  const slots = [];
+  for (let h = 7; h <= 21; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      const d = new Date(`2000-01-01T${val}`);
+      const label = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      slots.push({ val, label });
+    }
+  }
+  return slots;
+})();
+
 function uid() {
   return crypto?.randomUUID?.() ?? String(Date.now() + Math.random());
 }
@@ -185,7 +198,8 @@ export default function App() {
           Sign Out
         </button>
       </nav>
-      {activeTab === "sales" ? <Board /> : <Execution />}
+      <div style={{ display: activeTab === "sales" ? "block" : "none" }}><Board /></div>
+      <div style={{ display: activeTab === "execution" ? "block" : "none" }}><Execution /></div>
     </div>
   );
 }
@@ -1361,6 +1375,7 @@ function Execution() {
                       draggable
                       onDragStart={(e) => onTaskDragStart(e, task.id)}
                     >
+                      <span className="execDragHandle">&#x2847;</span>
                       <input
                         type="checkbox"
                         checked={task.status === "done"}
@@ -1480,7 +1495,10 @@ function Execution() {
                 <label className="label">Date</label>
                 <input type="date" value={a.date} onChange={(e) => updateAppt(a.id, { date: e.target.value })} />
                 <label className="label">Time</label>
-                <input type="time" value={a.time || ""} onChange={(e) => updateAppt(a.id, { time: e.target.value })} />
+                <select value={a.time || ""} onChange={(e) => updateAppt(a.id, { time: e.target.value })}>
+                  <option value="">No time</option>
+                  {TIME_SLOTS.map((s) => <option key={s.val} value={s.val}>{s.label}</option>)}
+                </select>
                 <label className="label">Notes</label>
                 <textarea rows={3} value={a.notes || ""} onChange={(e) => updateAppt(a.id, { notes: e.target.value })} />
                 <div className="row">
@@ -1570,7 +1588,10 @@ function AddAppt({ onAdd, onCancel }) {
       <input autoFocus placeholder="Appointment title" value={title} onChange={(e) => setTitle(e.target.value)} />
       <div className="apptAddRow">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        <select value={time} onChange={(e) => setTime(e.target.value)}>
+          <option value="">No time</option>
+          {TIME_SLOTS.map((s) => <option key={s.val} value={s.val}>{s.label}</option>)}
+        </select>
       </div>
       <div className="row" style={{ marginTop: 6 }}>
         <button className="btn" type="submit" style={{ fontSize: 11, padding: "6px 10px" }}>Add</button>
