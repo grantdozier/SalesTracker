@@ -803,27 +803,22 @@ function Editor({ card, columns, categories, onAddCategory, onChange, onDelete, 
       />
 
       <label className="label">Category</label>
-      <div className="catRow">
-        <select
-          value={card.category || ""}
-          onChange={(e) => onChange({ category: e.target.value })}
-          style={{ flex: 1 }}
-        >
-          <option value="">None</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <button
-          className="btn ghost"
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          title="Add new category"
-          style={{ padding: "10px 12px", flexShrink: 0 }}
-        >
-          +
-        </button>
-      </div>
+      <select
+        value={card.category || ""}
+        onChange={(e) => {
+          if (e.target.value === "__add_new__") {
+            setAdding(true);
+          } else {
+            onChange({ category: e.target.value });
+          }
+        }}
+      >
+        <option value="">None</option>
+        {categories.map((cat) => (
+          <option key={cat} value={cat}>{cat}</option>
+        ))}
+        <option value="__add_new__">+ Add new...</option>
+      </select>
       {adding && (
         <form onSubmit={submitNewCat} className="catRow" style={{ marginTop: 6 }}>
           <input
@@ -835,6 +830,14 @@ function Editor({ card, columns, categories, onAddCategory, onChange, onDelete, 
           />
           <button className="btn" type="submit" style={{ padding: "10px 12px" }}>
             Add
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => setAdding(false)}
+            style={{ padding: "10px 12px" }}
+          >
+            Cancel
           </button>
         </form>
       )}
