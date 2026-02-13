@@ -994,6 +994,10 @@ function Execution() {
   const [labels, setLabels] = useState([]);
   const [labelFilter, setLabelFilter] = useState("All");
   const [execSync, setExecSync] = useState("syncing");
+  const [collapsedCols, setCollapsedCols] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("exec_collapsed") || "{}"); }
+    catch { return {}; }
+  });
   const dragTaskRef = useRef(null);
 
   /* ── Sync helper (same pattern as Board) ── */
@@ -1111,6 +1115,26 @@ function Execution() {
     setTasks((prev) => [...prev, task]);
     setNewTask((prev) => ({ ...prev, [section]: "" }));
     syncExec(() => supabase.from("tasks").insert(task));
+  }
+
+  /* ── Column collapse ── */
+  function toggleCol(id) {
+    setCollapsedCols((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      localStorage.setItem("exec_collapsed", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  const isFocused = collapsedCols.captured && collapsedCols.committed && !collapsedCols.execute;
+
+  function toggleFocus() {
+    setCollapsedCols((prev) => {
+      const focusing = !(prev.captured && prev.committed);
+      const next = { ...prev, captured: focusing, committed: focusing, execute: false };
+      localStorage.setItem("exec_collapsed", JSON.stringify(next));
+      return next;
+    });
   }
 
   /* ── Click outside to collapse ── */
@@ -1349,11 +1373,38 @@ function Execution() {
           <option value="All">All Labels</option>
           {labels.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
+        <button
+          className={"btn" + (isFocused ? "" : " ghost")}
+          style={{ fontSize: 12, padding: "6px 14px" }}
+          onClick={toggleFocus}
+        >
+          {isFocused ? "Expand All" : "Focus Execute"}
+        </button>
       </div>
-      <div className="execGrid">
+      <div
+        className="execGrid"
+        style={{ gridTemplateColumns: SECTIONS.map((s) => collapsedCols[s.id] ? "48px" : "1fr").join(" ") }}
+      >
         {SECTIONS.map((sec) => {
           const secTasks = tasksBySection.get(sec.id) || [];
           const todoCount = secTasks.filter((t) => t.status !== "done").length;
+          const collapsed = collapsedCols[sec.id];
+
+          if (collapsed) {
+            return (
+              <section
+                key={sec.id}
+                className="execColRail"
+                onClick={() => toggleCol(sec.id)}
+                onDrop={(e) => onTaskDropOnSection(e, sec.id)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+              >
+                <span className="execRailCount">{todoCount}</span>
+                <span className="execRailLabel">{sec.title}</span>
+              </section>
+            );
+          }
+
           return (
             <section
               key={sec.id}
@@ -1363,7 +1414,10 @@ function Execution() {
             >
               <div className="execColHeader">
                 <span className="execColTitle">{sec.title} <span className="execColSub">{sec.sub}</span></span>
-                <span className="colCount">{todoCount}</span>
+                <div className="execColHeaderRight">
+                  <span className="colCount">{todoCount}</span>
+                  <button className="execCollapseBtn" onClick={() => toggleCol(sec.id)} title="Collapse">&#9664;</button>
+                </div>
               </div>
               <div className="execTaskList">
                 {secTasks.map((task) => (

@@ -628,6 +628,9 @@ select {
 /* ── Execution filter bar ────────────────────────────────── */
 
 .execFilterBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
   margin-bottom: 14px;
 }
 
@@ -635,9 +638,9 @@ select {
 
 .execGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   align-items: start;
+  transition: grid-template-columns 0.2s;
 }
 
 .execCol {
@@ -655,6 +658,28 @@ select {
   margin-bottom: 10px;
 }
 
+.execColHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.execCollapseBtn {
+  background: none;
+  border: none;
+  color: #d0d5dd;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: inherit;
+  border-radius: 4px;
+}
+
+.execCollapseBtn:hover {
+  color: #667085;
+  background: #f2f4f7;
+}
+
 .execColTitle {
   font-weight: 700;
   font-size: 14px;
@@ -666,6 +691,44 @@ select {
   font-size: 11px;
   color: #98a2b3;
   letter-spacing: 0.3px;
+}
+
+/* ── Collapsed column rail ───────────────────────────────── */
+
+.execColRail {
+  background: #f9fafb;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 14px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-height: 200px;
+  transition: background 0.15s;
+}
+
+.execColRail:hover {
+  background: #f2f4f7;
+  border-color: #d0d5dd;
+}
+
+.execRailCount {
+  font-size: 12px;
+  color: #667085;
+  background: #e4e7ec;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.execRailLabel {
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+  font-weight: 700;
+  font-size: 13px;
+  color: #98a2b3;
+  letter-spacing: 1px;
 }
 
 .execTaskList {
