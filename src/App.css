@@ -162,7 +162,7 @@ body { overflow-x: auto; }
 
 .board {
   display: grid;
-  grid-template-columns: repeat(7, minmax(170px, 1fr)) 320px;
+  grid-template-columns: repeat(8, minmax(160px, 1fr)) 320px;
   gap: 12px;
   align-items: start;
 }

@@ -6,6 +6,7 @@ const STORAGE_KEY = "sales_board_v1";
 const DEFAULT_COLUMNS = [
   { id: "backlog", title: "Backlog" },
   { id: "contacted", title: "Contacted" },
+  { id: "meetings", title: "Meetings" },
   { id: "qualified", title: "Qualified" },
   { id: "proposal", title: "Proposal" },
   { id: "negotiation", title: "Negotiation" },
@@ -40,6 +41,18 @@ function catColor(name) {
 
 function uid() {
   return crypto?.randomUUID?.() ?? String(Date.now() + Math.random());
+}
+
+function formatMoney(n) {
+  if (n >= 1000000) {
+    const m = n / 1000000;
+    return "$" + (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + "M";
+  }
+  if (n >= 1000) {
+    const k = n / 1000;
+    return "$" + (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + "k";
+  }
+  return "$" + n.toLocaleString();
 }
 
 function getDueStatus(date) {
@@ -215,8 +228,12 @@ export default function App() {
     return cards
       .filter((c) => c.columnId !== "won" && c.columnId !== "lost")
       .reduce((sum, c) => {
-        const n = parseFloat(String(c.value).replace(/[^0-9.]/g, ""));
-        return sum + (isNaN(n) ? 0 : n);
+        const raw = String(c.value || "").trim().toLowerCase();
+        const num = parseFloat(raw.replace(/[^0-9.]/g, ""));
+        if (isNaN(num)) return sum;
+        if (raw.includes("m")) return sum + num * 1000000;
+        if (raw.includes("k")) return sum + num * 1000;
+        return sum + num;
       }, 0);
   }, [cards]);
 
@@ -478,7 +495,7 @@ export default function App() {
             Drag deals left &rarr; right &nbsp;
             {pipelineTotal > 0 && (
               <span className="pipeline">
-                Pipeline: ${pipelineTotal.toLocaleString()}
+                Pipeline: {formatMoney(pipelineTotal)}
               </span>
             )}
           </div>
