@@ -693,25 +693,32 @@ select {
   letter-spacing: 0.3px;
 }
 
-/* ── Collapsed column rail ───────────────────────────────── */
+/* ── Collapsed column (CSS-driven) ───────────────────────── */
 
-.execColRail {
-  background: #f9fafb;
-  border: 1px solid #e4e7ec;
-  border-radius: 14px;
+.execColRailContent {
+  display: none;
+}
+
+.execCol.collapsed {
+  min-height: 200px;
+  cursor: pointer;
   padding: 14px 0;
+}
+
+.execCol.collapsed:hover {
+  background: #f2f4f7;
+  border-color: #d0d5dd;
+}
+
+.execCol.collapsed .execColRailContent {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  cursor: pointer;
-  min-height: 200px;
-  transition: background 0.15s;
 }
 
-.execColRail:hover {
-  background: #f2f4f7;
-  border-color: #d0d5dd;
+.execCol.collapsed .execColContent {
+  display: none;
 }
 
 .execRailCount {
@@ -1184,9 +1191,36 @@ select {
   margin-left: 4px;
 }
 
+/* ── Execution mobile tab bar ─────────────────────────────── */
+
+.execMobileTabBar {
+  display: none;
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+}
+
 /* ── Responsive (mobile) ─────────────────────────────────── */
 
 @media (max-width: 768px) {
+  /* ── App nav ── */
+  .appNav {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .appTitle {
+    font-size: 14px;
+  }
+
+  .appTab {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  /* ── Sales Board ── */
   .wrap {
     min-width: unset;
     padding: 12px;
@@ -1194,12 +1228,32 @@ select {
 
   .header {
     flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .headerTitle {
+    font-size: 15px;
   }
 
   .search {
     flex: 1;
     max-width: none;
     min-width: 0;
+    order: 10;
+  }
+
+  .filterSelect {
+    flex: 1;
+    min-width: 0;
+    order: 11;
+  }
+
+  .pipeline {
+    font-size: 12px;
+  }
+
+  .syncBadge {
+    order: 12;
   }
 
   .mobileTabBar {
@@ -1271,21 +1325,67 @@ select {
     right: 0;
   }
 
-  /* Execution mobile */
+  /* ── Execution mobile ── */
   .execWrap {
     flex-direction: column;
     padding: 12px;
   }
 
-  .execSidebar {
-    width: 100%;
-    position: static;
-    order: -1;
-    max-height: none;
+  .execFilterBar {
+    flex-wrap: wrap;
+  }
+
+  .execMobileTabBar {
+    display: flex;
   }
 
   .execGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+
+  .execCol {
+    display: none;
+    min-height: 0;
+  }
+
+  .execCol.mobileActive {
+    display: block;
+  }
+
+  /* On mobile, always show full content even if collapsed */
+  .execCol.collapsed.mobileActive {
+    padding: 12px;
+    cursor: default;
+  }
+
+  .execCol.collapsed.mobileActive .execColRailContent {
+    display: none;
+  }
+
+  .execCol.collapsed.mobileActive .execColContent {
+    display: block;
+  }
+
+  .execCollapseBtn {
+    display: none;
+  }
+
+  .execSidebar {
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
+
+  .execQuoteCard {
+    padding: 14px;
+  }
+
+  .execQuoteText {
+    font-size: 13px;
+  }
+
+  .taskDetail {
+    padding: 10px 12px;
   }
 }
 

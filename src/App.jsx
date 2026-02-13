@@ -998,6 +998,7 @@ function Execution() {
     try { return JSON.parse(localStorage.getItem("exec_collapsed") || "{}"); }
     catch { return {}; }
   });
+  const [mobileExecCol, setMobileExecCol] = useState("execute");
   const dragTaskRef = useRef(null);
 
   /* ── Sync helper (same pattern as Board) ── */
@@ -1381,6 +1382,20 @@ function Execution() {
           {isFocused ? "Expand All" : "Focus Execute"}
         </button>
       </div>
+      <nav className="execMobileTabBar">
+        {SECTIONS.map((sec) => {
+          const count = (tasksBySection.get(sec.id) || []).length;
+          return (
+            <button
+              key={sec.id}
+              className={"mobileTab" + (mobileExecCol === sec.id ? " active" : "")}
+              onClick={() => setMobileExecCol(sec.id)}
+            >
+              {sec.title} <span className="mobileTabCount">{count}</span>
+            </button>
+          );
+        })}
+      </nav>
       <div
         className="execGrid"
         style={{ gridTemplateColumns: SECTIONS.map((s) => collapsedCols[s.id] ? "48px" : "1fr").join(" ") }}
@@ -1390,102 +1405,93 @@ function Execution() {
           const todoCount = secTasks.filter((t) => t.status !== "done").length;
           const collapsed = collapsedCols[sec.id];
 
-          if (collapsed) {
-            return (
-              <section
-                key={sec.id}
-                className="execColRail"
-                onClick={() => toggleCol(sec.id)}
-                onDrop={(e) => onTaskDropOnSection(e, sec.id)}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-              >
-                <span className="execRailCount">{todoCount}</span>
-                <span className="execRailLabel">{sec.title}</span>
-              </section>
-            );
-          }
-
           return (
             <section
               key={sec.id}
-              className="execCol"
+              className={"execCol" + (collapsed ? " collapsed" : "") + (sec.id === mobileExecCol ? " mobileActive" : "")}
               onDrop={(e) => onTaskDropOnSection(e, sec.id)}
               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
             >
-              <div className="execColHeader">
-                <span className="execColTitle">{sec.title} <span className="execColSub">{sec.sub}</span></span>
-                <div className="execColHeaderRight">
-                  <span className="colCount">{todoCount}</span>
-                  <button className="execCollapseBtn" onClick={() => toggleCol(sec.id)} title="Collapse">&#9664;</button>
-                </div>
+              <div className="execColRailContent" onClick={() => toggleCol(sec.id)}>
+                <span className="execRailCount">{todoCount}</span>
+                <span className="execRailLabel">{sec.title}</span>
               </div>
-              <div className="execTaskList">
-                {secTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="execTaskWrap"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const mid = rect.top + rect.height / 2;
-                      e.currentTarget.setAttribute("data-drop", e.clientY < mid ? "above" : "below");
-                    }}
-                    onDragLeave={(e) => e.currentTarget.removeAttribute("data-drop")}
-                    onDrop={(e) => {
-                      const pos = e.currentTarget.getAttribute("data-drop") || "below";
-                      e.currentTarget.removeAttribute("data-drop");
-                      onTaskDropOnTask(e, task.id, pos);
-                    }}
-                  >
-                    <div
-                      className={"execTask" + (expandedTaskId === task.id ? " expanded" : "")}
-                      draggable
-                      onDragStart={(e) => onTaskDragStart(e, task.id)}
-                      onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
-                    >
-                      <span className="execTaskName">{task.title}</span>
-                      {task.label && <CatBadge name={task.label} />}
-                      {(task.subtasks || []).length > 0 && (
-                        <span className="execStepsBadge">
-                          {(task.subtasks || []).filter((s) => s.done).length}/{(task.subtasks || []).length}
-                        </span>
-                      )}
-                      <button
-                        className="execTaskDel"
-                        onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
-                      >
-                        &times;
-                      </button>
-                    </div>
-                    {expandedTaskId === task.id && (
-                      <TaskDetail
-                        key={task.id}
-                        task={task}
-                        labels={labels}
-                        onAddLabel={addLabel}
-                        onDeleteLabel={deleteLabel}
-                        onUpdateField={(patch) => updateTaskField(task.id, patch)}
-                        onToggleSubtask={(subId) => toggleSubtask(task.id, subId)}
-                        onAddSubtask={(title) => addSubtask(task.id, title)}
-                        onDeleteSubtask={(subId) => deleteSubtask(task.id, subId)}
-                      />
-                    )}
+              <div className="execColContent">
+                <div className="execColHeader">
+                  <span className="execColTitle">{sec.title} <span className="execColSub">{sec.sub}</span></span>
+                  <div className="execColHeaderRight">
+                    <span className="colCount">{todoCount}</span>
+                    <button className="execCollapseBtn" onClick={() => toggleCol(sec.id)} title="Collapse">&#9664;</button>
                   </div>
-                ))}
-                <form
-                  className="execAddForm"
-                  onSubmit={(e) => { e.preventDefault(); addTask(sec.id); }}
-                >
-                  <input
-                    className="execAddInput"
-                    placeholder="Add task..."
-                    value={newTask[sec.id]}
-                    onChange={(e) =>
-                      setNewTask((prev) => ({ ...prev, [sec.id]: e.target.value }))
-                    }
-                  />
-                </form>
+                </div>
+                <div className="execTaskList">
+                  {secTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="execTaskWrap"
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const mid = rect.top + rect.height / 2;
+                        e.currentTarget.setAttribute("data-drop", e.clientY < mid ? "above" : "below");
+                      }}
+                      onDragLeave={(e) => e.currentTarget.removeAttribute("data-drop")}
+                      onDrop={(e) => {
+                        const pos = e.currentTarget.getAttribute("data-drop") || "below";
+                        e.currentTarget.removeAttribute("data-drop");
+                        onTaskDropOnTask(e, task.id, pos);
+                      }}
+                    >
+                      <div
+                        className={"execTask" + (expandedTaskId === task.id ? " expanded" : "")}
+                        draggable
+                        onDragStart={(e) => onTaskDragStart(e, task.id)}
+                        onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                      >
+                        <span className="execTaskName">{task.title}</span>
+                        {task.label && <CatBadge name={task.label} />}
+                        {(task.subtasks || []).length > 0 && (
+                          <span className="execStepsBadge">
+                            {(task.subtasks || []).filter((s) => s.done).length}/{(task.subtasks || []).length}
+                          </span>
+                        )}
+                        <button
+                          className="execTaskDel"
+                          onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      {expandedTaskId === task.id && (
+                        <TaskDetail
+                          key={task.id}
+                          task={task}
+                          labels={labels}
+                          onAddLabel={addLabel}
+                          onDeleteLabel={deleteLabel}
+                          onUpdateField={(patch) => updateTaskField(task.id, patch)}
+                          onToggleSubtask={(subId) => toggleSubtask(task.id, subId)}
+                          onAddSubtask={(title) => addSubtask(task.id, title)}
+                          onDeleteSubtask={(subId) => deleteSubtask(task.id, subId)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                  <form
+                    className="execAddForm"
+                    onSubmit={(e) => { e.preventDefault(); addTask(sec.id); }}
+                  >
+                    <input
+                      className="execAddInput"
+                      placeholder="Add task..."
+                      value={newTask[sec.id]}
+                      onChange={(e) =>
+                        setNewTask((prev) => ({ ...prev, [sec.id]: e.target.value }))
+                      }
+                    />
+                  </form>
+                </div>
               </div>
             </section>
           );
