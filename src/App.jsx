@@ -1023,9 +1023,10 @@ function Execution() {
         if (parsed.date === today) { setQuote(parsed); return; }
       } catch { /* ignore */ }
     }
-    fetch("https://zenquotes.io/api/today")
+    fetch("https://api.allorigins.win/get?url=" + encodeURIComponent("https://zenquotes.io/api/today"))
       .then((r) => r.json())
-      .then((data) => {
+      .then((wrapper) => {
+        const data = JSON.parse(wrapper.contents);
         if (data?.[0]?.q) {
           const q = { text: data[0].q, author: data[0].a, date: today };
           setQuote(q);
