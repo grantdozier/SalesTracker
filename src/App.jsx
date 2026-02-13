@@ -983,6 +983,7 @@ function Execution() {
   const [appts, setAppts] = useState([]);
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showAddAppt, setShowAddAppt] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState(null);
   const dragTaskRef = useRef(null);
 
   const SECTIONS = [
@@ -1104,6 +1105,47 @@ function Execution() {
   function deleteTask(id) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     supabase.from("tasks").delete().eq("id", id);
+    if (expandedTaskId === id) setExpandedTaskId(null);
+  }
+
+  /* ── Subtasks ── */
+  function addSubtask(taskId, title) {
+    if (!title.trim()) return;
+    setTasks((prev) => {
+      const next = prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const subs = t.subtasks || [];
+        if (subs.length >= 7) return t;
+        return { ...t, subtasks: [...subs, { id: uid(), title: title.trim(), done: false }] };
+      });
+      const task = next.find((t) => t.id === taskId);
+      if (task) supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId);
+      return next;
+    });
+  }
+
+  function toggleSubtask(taskId, subId) {
+    setTasks((prev) => {
+      const next = prev.map((t) => {
+        if (t.id !== taskId) return t;
+        return { ...t, subtasks: (t.subtasks || []).map((s) => s.id === subId ? { ...s, done: !s.done } : s) };
+      });
+      const task = next.find((t) => t.id === taskId);
+      if (task) supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId);
+      return next;
+    });
+  }
+
+  function deleteSubtask(taskId, subId) {
+    setTasks((prev) => {
+      const next = prev.map((t) => {
+        if (t.id !== taskId) return t;
+        return { ...t, subtasks: (t.subtasks || []).filter((s) => s.id !== subId) };
+      });
+      const task = next.find((t) => t.id === taskId);
+      if (task) supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId);
+      return next;
+    });
   }
 
   /* ── Drag-and-drop ── */
@@ -1331,6 +1373,18 @@ function Execution() {
                         onChange={(e) => updateTaskTitle(task.id, e.target.value)}
                         onBlur={() => saveTaskTitle(task.id)}
                       />
+                      {(task.subtasks || []).length > 0 && (
+                        <span className="subBadge">
+                          {(task.subtasks || []).filter((s) => s.done).length}/{(task.subtasks || []).length}
+                        </span>
+                      )}
+                      <button
+                        className="execTaskExpand"
+                        onClick={(e) => { e.stopPropagation(); setExpandedTaskId(expandedTaskId === task.id ? null : task.id); }}
+                        title="Steps"
+                      >
+                        {expandedTaskId === task.id ? "\u25BE" : "\u25B8"}
+                      </button>
                       <button
                         className="execTaskDel"
                         onClick={() => deleteTask(task.id)}
@@ -1339,6 +1393,14 @@ function Execution() {
                         &times;
                       </button>
                     </div>
+                    {expandedTaskId === task.id && (
+                      <SubtaskList
+                        subtasks={task.subtasks || []}
+                        onToggle={(subId) => toggleSubtask(task.id, subId)}
+                        onAdd={(title) => addSubtask(task.id, title)}
+                        onDelete={(subId) => deleteSubtask(task.id, subId)}
+                      />
+                    )}
                   </div>
                 ))}
                 <form
@@ -1430,6 +1492,45 @@ function Execution() {
           })()}
         </div>
       </aside>
+    </div>
+  );
+}
+
+/* ── Subtask list ─────────────────────────────────────────────── */
+
+function SubtaskList({ subtasks, onToggle, onAdd, onDelete }) {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="subList">
+      {subtasks.map((s) => (
+        <div key={s.id} className={"subItem" + (s.done ? " done" : "")}>
+          <input
+            type="checkbox"
+            checked={s.done}
+            onChange={() => onToggle(s.id)}
+            className="subCheck"
+          />
+          <span className="subTitle">{s.title}</span>
+          <button className="execTaskDel" onClick={() => onDelete(s.id)}>&times;</button>
+        </div>
+      ))}
+      {subtasks.length < 7 && (
+        <form
+          className="subAddForm"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (value.trim()) { onAdd(value.trim()); setValue(""); }
+          }}
+        >
+          <input
+            className="subAddInput"
+            placeholder="Add step..."
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+        </form>
+      )}
     </div>
   );
 }

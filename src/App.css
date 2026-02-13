@@ -780,6 +780,85 @@ select {
   background: #fff;
 }
 
+/* ── Subtasks ────────────────────────────────────────────── */
+
+.execTaskExpand {
+  background: none;
+  border: none;
+  color: #667085;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.execTaskExpand:hover {
+  color: #111;
+}
+
+.subBadge {
+  font-size: 10px;
+  color: #667085;
+  background: #f2f4f7;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.subList {
+  padding: 6px 8px 6px 30px;
+}
+
+.subItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.subItem.done .subTitle {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.subCheck {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #111;
+}
+
+.subTitle {
+  flex: 1;
+  color: #344054;
+}
+
+.subAddForm {
+  margin-top: 4px;
+}
+
+.subAddInput {
+  width: 100%;
+  border: none;
+  border-bottom: 1px dashed #e4e7ec;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: 0;
+}
+
+.subAddInput:focus {
+  outline: none;
+  border-bottom-style: solid;
+  border-bottom-color: #d0d5dd;
+}
+
 /* ── Sidebar (quote + appointments) ──────────────────────── */
 
 .execSidebar {
