@@ -1008,9 +1008,9 @@ function Execution() {
   }, []);
 
   const SECTIONS = [
-    { id: "captured", title: "Captured" },
-    { id: "committed", title: "Committed" },
-    { id: "execute", title: "Execute" },
+    { id: "captured", title: "Brain Dump", sub: "backlog" },
+    { id: "committed", title: "Committed", sub: "weekly" },
+    { id: "execute", title: "Execute", sub: "daily" },
   ];
 
   /* ── Load from Supabase (with localStorage fallback) ── */
@@ -1323,7 +1323,7 @@ function Execution() {
               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
             >
               <div className="execColHeader">
-                <span className="execColTitle">{sec.title}</span>
+                <span className="execColTitle">{sec.title} <span className="execColSub">{sec.sub}</span></span>
                 <span className="colCount">{todoCount}</span>
               </div>
               <div className="execTaskList">

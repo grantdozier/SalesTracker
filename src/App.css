@@ -655,6 +655,13 @@ select {
   color: #344054;
 }
 
+.execColSub {
+  font-weight: 400;
+  font-size: 11px;
+  color: #98a2b3;
+  letter-spacing: 0.3px;
+}
+
 .execTaskList {
   display: flex;
   flex-direction: column;
