@@ -1257,14 +1257,14 @@ function Execution() {
   function updateTarget(key, delta) {
     const newVal = Math.max(0, (targets[key] || 0) + delta);
     setTargets((prev) => ({ ...prev, [key]: newVal }));
-    syncExec(() => supabase.from("weekly_targets").update({ value: newVal }).eq("key", key));
+    syncExec(() => supabase.from("weekly_targets").upsert({ key, value: newVal }, { onConflict: "key" }));
   }
 
   function resetTargets() {
     if (!confirm("Reset all weekly counters to 0?")) return;
     setTargets({ leads_added: 0, meetings_booked: 0, proposals_sent: 0, federal_proposals: 0 });
     ["leads_added", "meetings_booked", "proposals_sent", "federal_proposals"].forEach(
-      (key) => syncExec(() => supabase.from("weekly_targets").update({ value: 0 }).eq("key", key))
+      (key) => syncExec(() => supabase.from("weekly_targets").upsert({ key, value: 0 }, { onConflict: "key" }))
     );
   }
 
