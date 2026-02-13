@@ -1032,6 +1032,7 @@ function Execution() {
           const local = JSON.parse(localStorage.getItem("exec_data") || "{}");
           if (local.tasks) setTasks(local.tasks);
           if (local.appts) setAppts(local.appts);
+          if (local.labels) setLabels(local.labels);
         } catch { /* ignore */ }
         setExecSync("offline");
         return;
@@ -1075,8 +1076,8 @@ function Execution() {
 
   /* ── Persist to localStorage on every change ── */
   useEffect(() => {
-    localStorage.setItem("exec_data", JSON.stringify({ tasks, appts }));
-  }, [tasks, appts]);
+    localStorage.setItem("exec_data", JSON.stringify({ tasks, appts, labels }));
+  }, [tasks, appts, labels]);
 
   /* ── Derived: tasks grouped by section, sorted ── */
   const tasksBySection = useMemo(() => {
@@ -1104,6 +1105,7 @@ function Execution() {
     const task = {
       id: uid(), title, section, status: "todo",
       sort_order: maxOrder, subtasks: [],
+      label: "", notes: "",
       created_at: now, updated_at: now,
     };
     setTasks((prev) => [...prev, task]);
