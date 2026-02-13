@@ -281,9 +281,9 @@ body { overflow-x: auto; }
 
 .cardTopRow {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px 6px;
   margin-bottom: 6px;
 }
 
