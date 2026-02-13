@@ -998,7 +998,21 @@ function Execution() {
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showAddAppt, setShowAddAppt] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [execSync, setExecSync] = useState("syncing");
   const dragTaskRef = useRef(null);
+
+  /* ── Sync helper (same pattern as Board) ── */
+  const syncExec = useCallback(async (op) => {
+    setExecSync("syncing");
+    try {
+      const { error } = await op();
+      if (error) throw error;
+      setExecSync("synced");
+    } catch (err) {
+      console.error("Exec sync error:", err);
+      setExecSync("offline");
+    }
+  }, []);
 
   const SECTIONS = [
     { id: "captured", title: "Captured" },
@@ -1006,37 +1020,38 @@ function Execution() {
     { id: "execute", title: "Execute" },
   ];
 
+  /* ── Load from Supabase (with localStorage fallback) ── */
   useEffect(() => {
-    supabase
-      .from("tasks")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .then(({ data }) => {
-        if (data) setTasks(data);
-      });
+    setExecSync("syncing");
 
-    supabase
-      .from("weekly_targets")
-      .select("*")
-      .then(({ data }) => {
-        if (data) {
-          const obj = {};
-          data.forEach((r) => { obj[r.key] = r.value; });
-          setTargets(obj);
-        }
-      });
+    Promise.all([
+      supabase.from("tasks").select("*").order("sort_order", { ascending: true }),
+      supabase.from("appointments").select("*").order("date", { ascending: true }),
+      supabase.from("weekly_targets").select("*"),
+      supabase.from("deals").select("id", { count: "exact", head: true }).eq("column_id", "backlog"),
+    ]).then(([tasksRes, apptsRes, targetsRes, backlogRes]) => {
+      if (tasksRes.error || apptsRes.error) {
+        console.error("Exec load errors:", tasksRes.error, apptsRes.error);
+        // Fallback to localStorage
+        try {
+          const local = JSON.parse(localStorage.getItem("exec_data") || "{}");
+          if (local.tasks) setTasks(local.tasks);
+          if (local.appts) setAppts(local.appts);
+        } catch { /* ignore */ }
+        setExecSync("offline");
+        return;
+      }
 
-    supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
-      .eq("column_id", "backlog")
-      .then(({ count }) => { setBacklogCount(count || 0); });
-
-    supabase
-      .from("appointments")
-      .select("*")
-      .order("date", { ascending: true })
-      .then(({ data }) => { if (data) setAppts(data); });
+      if (tasksRes.data) setTasks(tasksRes.data);
+      if (apptsRes.data) setAppts(apptsRes.data);
+      if (targetsRes.data) {
+        const obj = {};
+        targetsRes.data.forEach((r) => { obj[r.key] = r.value; });
+        setTargets(obj);
+      }
+      setBacklogCount(backlogRes.count || 0);
+      setExecSync("synced");
+    });
 
     // Quote of the day (cached in localStorage)
     const today = new Date().toISOString().slice(0, 10);
@@ -1059,6 +1074,11 @@ function Execution() {
       })
       .catch(() => {});
   }, []);
+
+  /* ── Persist to localStorage on every change ── */
+  useEffect(() => {
+    localStorage.setItem("exec_data", JSON.stringify({ tasks, appts }));
+  }, [tasks, appts]);
 
   /* ── Derived: tasks grouped by section, sorted ── */
   const tasksBySection = useMemo(() => {
@@ -1084,11 +1104,12 @@ function Execution() {
       : 0;
     const task = {
       id: uid(), title, section, status: "todo",
-      sort_order: maxOrder, created_at: now, updated_at: now,
+      sort_order: maxOrder, subtasks: [],
+      created_at: now, updated_at: now,
     };
     setTasks((prev) => [...prev, task]);
     setNewTask((prev) => ({ ...prev, [section]: "" }));
-    supabase.from("tasks").insert(task);
+    syncExec(() => supabase.from("tasks").insert(task));
   }
 
   /* ── Edit title ── */
@@ -1099,26 +1120,15 @@ function Execution() {
   function saveTaskTitle(id) {
     setTasks((prev) => {
       const task = prev.find((t) => t.id === id);
-      if (task) supabase.from("tasks").update({ title: task.title }).eq("id", id);
+      if (task) syncExec(() => supabase.from("tasks").update({ title: task.title }).eq("id", id));
       return prev;
-    });
-  }
-
-  /* ── Toggle done ── */
-  function toggleTask(id) {
-    setTasks((prev) => {
-      const task = prev.find((t) => t.id === id);
-      if (!task) return prev;
-      const newStatus = task.status === "done" ? "todo" : "done";
-      supabase.from("tasks").update({ status: newStatus }).eq("id", id);
-      return prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t));
     });
   }
 
   /* ── Delete ── */
   function deleteTask(id) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    supabase.from("tasks").delete().eq("id", id);
+    syncExec(() => supabase.from("tasks").delete().eq("id", id));
     if (expandedTaskId === id) setExpandedTaskId(null);
   }
 
@@ -1133,7 +1143,7 @@ function Execution() {
         return { ...t, subtasks: [...subs, { id: uid(), title: title.trim(), done: false }] };
       });
       const task = next.find((t) => t.id === taskId);
-      if (task) supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId);
+      if (task) syncExec(() => supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId));
       return next;
     });
   }
@@ -1145,7 +1155,7 @@ function Execution() {
         return { ...t, subtasks: (t.subtasks || []).map((s) => s.id === subId ? { ...s, done: !s.done } : s) };
       });
       const task = next.find((t) => t.id === taskId);
-      if (task) supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId);
+      if (task) syncExec(() => supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId));
       return next;
     });
   }
@@ -1157,7 +1167,7 @@ function Execution() {
         return { ...t, subtasks: (t.subtasks || []).filter((s) => s.id !== subId) };
       });
       const task = next.find((t) => t.id === taskId);
-      if (task) supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId);
+      if (task) syncExec(() => supabase.from("tasks").update({ subtasks: task.subtasks }).eq("id", taskId));
       return next;
     });
   }
@@ -1197,7 +1207,7 @@ function Execution() {
       setTasks((prev) => {
         const latest = prev.find((t) => t.id === taskId);
         if (latest) {
-          supabase.from("tasks").update({ section: latest.section, sort_order: latest.sort_order }).eq("id", taskId);
+          syncExec(() => supabase.from("tasks").update({ section: latest.section, sort_order: latest.sort_order }).eq("id", taskId));
         }
         return prev;
       });
@@ -1227,12 +1237,17 @@ function Execution() {
       });
 
       // Batch sync
+      setExecSync("syncing");
       const toSync = next.filter((t) => t.section === targetSection);
       Promise.all(
         toSync.map((t) =>
           supabase.from("tasks").update({ sort_order: t.sort_order, section: t.section }).eq("id", t.id)
         )
-      );
+      ).then((results) => {
+        const err = results.find((r) => r.error);
+        if (err) { console.error("Reorder sync error:", err.error); setExecSync("offline"); }
+        else setExecSync("synced");
+      }).catch(() => setExecSync("offline"));
 
       return next;
     });
@@ -1242,14 +1257,14 @@ function Execution() {
   function updateTarget(key, delta) {
     const newVal = Math.max(0, (targets[key] || 0) + delta);
     setTargets((prev) => ({ ...prev, [key]: newVal }));
-    supabase.from("weekly_targets").update({ value: newVal }).eq("key", key);
+    syncExec(() => supabase.from("weekly_targets").update({ value: newVal }).eq("key", key));
   }
 
   function resetTargets() {
     if (!confirm("Reset all weekly counters to 0?")) return;
     setTargets({ leads_added: 0, meetings_booked: 0, proposals_sent: 0, federal_proposals: 0 });
     ["leads_added", "meetings_booked", "proposals_sent", "federal_proposals"].forEach(
-      (key) => supabase.from("weekly_targets").update({ value: 0 }).eq("key", key)
+      (key) => syncExec(() => supabase.from("weekly_targets").update({ value: 0 }).eq("key", key))
     );
   }
 
@@ -1258,7 +1273,7 @@ function Execution() {
     const now = new Date().toISOString();
     const appt = { id: uid(), title, date, time: time || "", related_deal_id: "", notes: "", created_at: now, updated_at: now };
     setAppts((prev) => [...prev, appt].sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || "")));
-    supabase.from("appointments").insert(appt);
+    syncExec(() => supabase.from("appointments").insert(appt));
   }
 
   function updateAppt(id, patch) {
@@ -1267,13 +1282,13 @@ function Execution() {
       prev.map((a) => (a.id === id ? { ...a, ...patch, updated_at: now } : a))
         .sort((a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || ""))
     );
-    supabase.from("appointments").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+    syncExec(() => supabase.from("appointments").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id));
   }
 
   function deleteAppt(id) {
     setAppts((prev) => prev.filter((a) => a.id !== id));
     setSelectedAppt(null);
-    supabase.from("appointments").delete().eq("id", id);
+    syncExec(() => supabase.from("appointments").delete().eq("id", id));
   }
 
   const apptGroups = useMemo(() => {
@@ -1395,6 +1410,11 @@ function Execution() {
       </div>
 
       <aside className="execSidebar">
+        {execSync && (
+          <span className={"syncBadge " + execSync} style={{ marginBottom: 12, display: "inline-block" }}>
+            {execSync === "syncing" ? "Syncing..." : execSync === "synced" ? "Synced" : "Offline (local)"}
+          </span>
+        )}
         {quote && (
           <div className="execQuoteCard">
             <div className="execQuoteText">&ldquo;{quote.text}&rdquo;</div>
@@ -1599,7 +1619,7 @@ function Login() {
   return (
     <div className="loginWrap">
       <form className="loginBox" onSubmit={handleSubmit}>
-        <h1>Sales Board</h1>
+        <h1>GrantOS</h1>
         <p className="muted" style={{ textAlign: "center" }}>Sign in to continue</p>
         {error && <div className="loginError">{error}</div>}
         <input
