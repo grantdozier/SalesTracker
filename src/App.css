@@ -808,19 +808,6 @@ select {
   color: #667085;
 }
 
-.execQuoteCredit {
-  margin-top: 16px;
-  font-size: 10px;
-}
-
-.execQuoteCredit a {
-  color: #d0d5dd;
-  text-decoration: none;
-}
-
-.execQuoteCredit a:hover {
-  color: #667085;
-}
 
 /* ── Login ───────────────────────────────────────────────── */
 

@@ -1322,9 +1322,6 @@ function Execution() {
         ) : (
           <div className="muted small">Loading quote...</div>
         )}
-        <div className="execQuoteCredit">
-          <a href="https://zenquotes.io/" target="_blank" rel="noopener noreferrer">zenquotes.io</a>
-        </div>
       </aside>
     </div>
   );
