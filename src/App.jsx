@@ -1303,39 +1303,6 @@ function Execution() {
   return (
     <div className="execWrap">
       <div className="execMain">
-      <div className="execTargets">
-        <div className="execTargetsHeader">
-          <span className="execTargetsTitle">Weekly Targets</span>
-          <button
-            className="btn ghost"
-            onClick={resetTargets}
-            style={{ fontSize: 11, padding: "4px 10px" }}
-          >
-            Reset
-          </button>
-        </div>
-        <div className="execTargetCards">
-          {TARGETS.map((t) => {
-            const val = t.auto ? t.value : targets[t.key] || 0;
-            return (
-              <div key={t.key} className="execTargetCard">
-                <div className="execTargetValue">
-                  {val}
-                  <span className="execTargetGoal">/{t.goal}</span>
-                </div>
-                <div className="execTargetLabel">{t.label}</div>
-                {!t.auto && (
-                  <div className="execTargetBtns">
-                    <button onClick={() => updateTarget(t.key, -1)}>−</button>
-                    <button onClick={() => updateTarget(t.key, 1)}>+</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="execGrid">
         {SECTIONS.map((sec) => {
           const secTasks = tasksBySection.get(sec.id) || [];
@@ -1434,6 +1401,28 @@ function Execution() {
             <div className="execQuoteAuthor">&mdash; {quote.author}</div>
           </div>
         )}
+
+        <div className="execTargetsV">
+          <div className="execTargetsVHeader">
+            <span className="execTargetsVTitle">Weekly Targets</span>
+            <button className="execTargetsVReset" onClick={resetTargets}>Reset</button>
+          </div>
+          {TARGETS.map((t) => {
+            const val = t.auto ? t.value : targets[t.key] || 0;
+            return (
+              <div key={t.key} className="targetRow">
+                <span className="targetRowLabel">{t.label}</span>
+                <span className="targetRowValue">{val}<span className="targetRowGoal">/{t.goal}</span></span>
+                {!t.auto && (
+                  <div className="targetRowBtns">
+                    <button onClick={() => updateTarget(t.key, -1)}>−</button>
+                    <button onClick={() => updateTarget(t.key, 1)}>+</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         <div className="execAppts">
           <div className="execApptHeader">
