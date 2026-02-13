@@ -734,9 +734,7 @@ select {
   font-size: 13px;
   font-weight: 600;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
 }
 
 .execStepsBadge {
